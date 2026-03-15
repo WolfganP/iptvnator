@@ -4,15 +4,16 @@
     [class.external-playback-dock--error]="session().status === 'error'"
 >
     <div class="external-playback-dock__artwork">
-        @if (session().thumbnail) {
+        @if (showArtwork()) {
             <img
-                [src]="session().thumbnail!"
+                [src]="artworkUrl()"
                 [alt]="session().title"
                 loading="lazy"
+                (error)="onArtworkError()"
             />
         } @else {
             <div class="external-playback-dock__placeholder">
-                <mat-icon>play_circle</mat-icon>
+                <mat-icon>{{ artworkPlaceholderIcon() }}</mat-icon>
             </div>
         }
     </div>
@@ -53,14 +54,5 @@
                 }
             </button>
         }
-        <button
-            type="button"
-            mat-icon-button
-            class="external-playback-dock__dismiss"
-            (click)="dismissClicked.emit()"
-            aria-label="Dismiss now playing panel"
-        >
-            <mat-icon>close</mat-icon>
-        </button>
     </div>
 </section>

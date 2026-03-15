@@ -41,7 +41,7 @@
 
         <div class="rail-footer">
             <a
-                class="rail-shortcut"
+                class="rail-shortcut nav-item"
                 routerLink="/workspace/settings"
                 [class.is-active]="isSettingsRoute()"
                 [matTooltip]="'WORKSPACE.SHELL.RAIL_SETTINGS' | translate"
@@ -261,7 +261,6 @@
                 <app-external-playback-dock
                     [session]="session"
                     (closeClicked)="closeActiveExternalSession()"
-                    (dismissClicked)="dismissActiveExternalSession()"
                 />
             </footer>
         }
