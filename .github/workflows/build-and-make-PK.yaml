@@ -22,6 +22,7 @@ jobs:
                     # Linux and Windows
                     - os: linux
                       runner: ubuntu-latest
+                      arch: x86_64
                     #- os: windows
                     # runner: windows-latest
 
