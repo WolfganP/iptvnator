@@ -92,12 +92,8 @@ jobs:
                   name: linux-artifacts
                   path: |
                       dist/executables/**/*.deb
-                      dist/executables/**/*.rpm
-                      dist/executables/**/*.snap
                       dist/executables/**/*.AppImage
                       dist/executables/**/*.tar.gz
-                      dist/executables/**/*.pacman
-                      dist/executables/**/*.flatpak
                   retention-days: 7
 
             - name: Upload artifacts (Windows)
