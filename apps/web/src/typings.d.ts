@@ -14,6 +14,9 @@ import {
     PlaylistRefreshEvent,
     PlaylistRefreshPayload,
     PortalDebugEvent,
+    XtreamBackupFavoriteItem,
+    XtreamBackupHiddenCategory,
+    XtreamBackupRecentlyViewedItem,
     XtreamCategory,
 } from 'shared-interfaces';
 import {
@@ -81,9 +84,7 @@ declare global {
                 headers?: Record<string, string>
             ) => Promise<ExternalPlayerSession>;
             autoUpdatePlaylists: (playlists: Playlist[]) => Promise<Playlist[]>;
-            fetchEpg: (
-                urls: string[]
-            ) => Promise<{
+            fetchEpg: (urls: string[]) => Promise<{
                 success: boolean;
                 message?: string;
                 skipped?: string[];
@@ -171,23 +172,14 @@ declare global {
                 operationId?: string
             ) => Promise<{
                 success: boolean;
-                favoritedXtreamIds: number[];
-                recentlyViewedXtreamIds: {
-                    xtreamId: number;
-                    viewedAt: string;
-                }[];
-                hiddenCategories: {
-                    xtreamId: number;
-                    type: string;
-                }[];
+                favorites: XtreamBackupFavoriteItem[];
+                recentlyViewed: XtreamBackupRecentlyViewedItem[];
+                hiddenCategories: XtreamBackupHiddenCategory[];
             }>;
             dbRestoreXtreamUserData: (
                 playlistId: string,
-                favoritedXtreamIds: number[],
-                recentlyViewedXtreamIds: {
-                    xtreamId: number;
-                    viewedAt: string;
-                }[],
+                favorites: XtreamBackupFavoriteItem[],
+                recentlyViewed: XtreamBackupRecentlyViewedItem[],
                 operationId?: string
             ) => Promise<{ success: boolean }>;
             dbHasCategories: (
@@ -250,7 +242,8 @@ declare global {
             // Favorites
             dbAddFavorite: (
                 contentId: number,
-                playlistId: string
+                playlistId: string,
+                backdropUrl?: string
             ) => Promise<{ success: boolean }>;
             dbRemoveFavorite: (
                 contentId: number,
@@ -270,7 +263,8 @@ declare global {
             dbGetRecentItems: (playlistId: string) => Promise<XtreamContent[]>;
             dbAddRecentItem: (
                 contentId: number,
-                playlistId: string
+                playlistId: string,
+                backdropUrl?: string
             ) => Promise<{ success: boolean }>;
             dbClearPlaylistRecentItems: (
                 playlistId: string
@@ -284,6 +278,10 @@ declare global {
                 playlistId: string,
                 contentType?: 'live' | 'movie' | 'series'
             ) => Promise<XtreamContent | null>;
+            dbSetContentBackdropIfMissing: (
+                contentId: number,
+                backdropUrl?: string
+            ) => Promise<{ success: boolean }>;
             dbGetAppState: (key: string) => Promise<string | null>;
             dbSetAppState: (
                 key: string,
@@ -381,6 +379,9 @@ declare global {
             dbGetAllPlaybackPositions: (
                 playlistId: string
             ) => Promise<PlaybackPositionData[]>;
+            dbClearAllPlaybackPositions: (
+                playlistId: string
+            ) => Promise<{ success: boolean }>;
             dbClearPlaybackPosition: (
                 playlistId: string,
                 contentXtreamId: number,

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import {
     Component,
+    computed,
     ElementRef,
     effect,
     inject,
@@ -30,10 +31,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
-import {
-    MatSnackBar,
-    MatSnackBarConfig,
-} from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarConfig } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import { Store } from '@ngrx/store';
@@ -42,12 +40,22 @@ import { EpgService } from '@iptvnator/epg/data-access';
 import { EpgSourceStatusComponent } from '@iptvnator/ui/epg';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { DialogService } from 'components';
-import { PlaylistActions, selectIsEpgAvailable } from 'm3u-state';
+import {
+    PlaylistActions,
+    selectAllPlaylistsMeta,
+    selectIsEpgAvailable,
+} from 'm3u-state';
 import { firstValueFrom, take } from 'rxjs';
-import { DataService, PlaylistsService } from 'services';
+import {
+    DatabaseService,
+    DbOperationEvent,
+    DataService,
+    PlaylistBackupImportSummary,
+    PlaylistBackupService,
+    PlaylistsService,
+} from 'services';
 import {
     Language,
-    Playlist,
     StartupBehavior,
     StreamFormat,
     Theme,
@@ -55,6 +63,10 @@ import {
 } from 'shared-interfaces';
 import { SettingsContextService } from '@iptvnator/workspace/shell/util';
 import { SettingsStore } from '../services/settings-store.service';
+import {
+    SettingsDeleteAllPlaylistsDialogComponent,
+    SettingsDeleteAllPlaylistsDialogData,
+} from './settings-delete-all-playlists-dialog.component';
 import { SettingsService } from './../services/settings.service';
 
 interface SettingsSection {
@@ -79,6 +91,9 @@ interface StartupBehaviorOption {
     value: StartupBehavior;
     labelKey: string;
 }
+
+type SettingsPlaylistDeleteSummary =
+    SettingsDeleteAllPlaylistsDialogData['summary'];
 
 @Component({
     templateUrl: './settings.component.html',
@@ -117,8 +132,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private store = inject(Store);
     private translate = inject(TranslateService);
     private matDialog = inject(MatDialog);
+    private playlistBackupService = inject(PlaylistBackupService);
     private readonly elementRef = inject(ElementRef<HTMLElement>);
     private readonly injector = inject(Injector);
+    private readonly databaseService = inject(DatabaseService);
     private readonly dialogData = inject<{ isDialog: boolean } | null>(
         MAT_DIALOG_DATA,
         { optional: true }
@@ -175,6 +192,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     /** EPG availability flag */
     epgAvailable$ = this.store.select(selectIsEpgAvailable);
+    readonly playlists = this.store.selectSignal(selectAllPlaylistsMeta);
 
     readonly themeOptions: ThemeOption[] = [
         {
@@ -241,11 +259,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
     visibleQrCodeIp = signal<string | null>(null);
     readonly isRemovingAllPlaylists = signal(false);
     readonly isClearingEpgData = signal(false);
+    readonly isExportingData = signal(false);
+    readonly removeAllProgress = signal<DbOperationEvent | null>(null);
 
     private settingsStore = inject(SettingsStore);
     private sectionObserver?: IntersectionObserver;
-    private pendingScrollClearTimer: ReturnType<typeof window.setTimeout> | null =
-        null;
+    private pendingScrollClearTimer: ReturnType<
+        typeof window.setTimeout
+    > | null = null;
     private pendingScrollClearRoot: HTMLElement | null = null;
     private pendingScrollEndListener: (() => void) | null = null;
 
@@ -287,6 +308,50 @@ export class SettingsComponent implements OnInit, OnDestroy {
             visible: true,
         },
     ];
+
+    readonly playlistDeleteSummary = computed<SettingsPlaylistDeleteSummary>(
+        () => {
+            const items = this.playlists();
+
+            return {
+                total: items.length,
+                m3u: items.filter((item) => !item.serverUrl && !item.macAddress)
+                    .length,
+                xtream: items.filter((item) => Boolean(item.serverUrl)).length,
+                stalker: items.filter((item) => Boolean(item.macAddress))
+                    .length,
+            };
+        }
+    );
+
+    readonly canRemoveAllPlaylists = computed(
+        () =>
+            !this.isRemovingAllPlaylists() &&
+            this.playlistDeleteSummary().total > 0
+    );
+
+    readonly removeAllProgressLabel = computed(() => {
+        if (!this.isRemovingAllPlaylists()) {
+            return null;
+        }
+
+        const progress = this.removeAllProgress();
+        const current = progress?.current;
+        const total = progress?.total;
+
+        if (
+            typeof current === 'number' &&
+            typeof total === 'number' &&
+            total > 0
+        ) {
+            return this.translate.instant('SETTINGS.REMOVE_ALL_PROGRESS', {
+                current,
+                total,
+            });
+        }
+
+        return this.translate.instant('SETTINGS.REMOVE_ALL_IN_PROGRESS');
+    });
 
     constructor() {
         effect(
@@ -398,6 +463,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.settingsForm.patchValue(currentSettings);
 
         if (this.isDesktop && currentSettings.epgUrl) {
+            this.epgUrl.clear();
             this.setEpgUrls(currentSettings.epgUrl);
         }
     }
@@ -626,9 +692,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
                 } catch (error) {
                     console.error('Failed to clear EPG data:', error);
                     this.openSettingsSnackbar(
-                        this.translate.instant(
-                            'SETTINGS.EPG_DATA_CLEAR_FAILED'
-                        )
+                        this.translate.instant('SETTINGS.EPG_DATA_CLEAR_FAILED')
                     );
                 } finally {
                     this.isClearingEpgData.set(false);
@@ -637,21 +701,55 @@ export class SettingsComponent implements OnInit, OnDestroy {
         });
     }
 
-    exportData() {
-        this.playlistsService
-            .getAllData()
-            .pipe(take(1))
-            .subscribe((data) => {
-                const blob = new Blob([JSON.stringify(data)], {
-                    type: 'text/plain',
+    async exportData() {
+        if (this.isExportingData()) {
+            return;
+        }
+
+        this.isExportingData.set(true);
+
+        // Let Angular paint the busy state before the backup build and native
+        // save dialog handoff start.
+        await this.waitForUiFeedbackFrame();
+
+        try {
+            const backup = await this.playlistBackupService.exportBackup();
+
+            if (this.isDesktop && window.electron?.saveFileDialog) {
+                const savePath = await window.electron.saveFileDialog(
+                    backup.defaultFileName,
+                    [
+                        {
+                            name: 'JSON',
+                            extensions: ['json'],
+                        },
+                    ]
+                );
+
+                if (!savePath) {
+                    return;
+                }
+
+                await window.electron.writeFile(savePath, backup.json);
+            } else {
+                const blob = new Blob([backup.json], {
+                    type: 'application/json',
                 });
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = 'playlists.json';
+                link.download = backup.defaultFileName;
                 link.click();
                 window.URL.revokeObjectURL(url);
-            });
+            }
+
+            this.openSettingsSnackbar('Playlist backup exported.');
+        } catch (error) {
+            console.error('Failed to export playlist backup:', error);
+            this.openSettingsSnackbar('Playlist backup export failed.');
+        } finally {
+            this.isExportingData.set(false);
+        }
     }
 
     importData() {
@@ -659,72 +757,145 @@ export class SettingsComponent implements OnInit, OnDestroy {
         input.type = 'file';
         input.accept = 'application/json';
 
-        input.addEventListener('change', (event: Event) => {
+        input.addEventListener('change', async (event: Event) => {
             const target = event.target as HTMLInputElement;
             const file = target.files?.[0];
 
             if (file) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const contents = reader.result;
-
-                    try {
-                        const parsedPlaylists: Playlist[] = JSON.parse(
-                            contents.toString()
+                try {
+                    const summary =
+                        await this.playlistBackupService.importBackup(
+                            await file.text()
                         );
 
-                        if (!Array.isArray(parsedPlaylists)) {
-                            this.openSettingsSnackbar(
-                                this.translate.instant('SETTINGS.IMPORT_ERROR'),
-                            );
-                        } else {
-                            this.store.dispatch(
-                                PlaylistActions.addManyPlaylists({
-                                    playlists: parsedPlaylists,
-                                })
-                            );
-                        }
-                    } catch (error) {
-                        this.openSettingsSnackbar(
-                            this.translate.instant('SETTINGS.IMPORT_ERROR'),
+                    if (summary.imported > 0 || summary.merged > 0) {
+                        this.store.dispatch(
+                            PlaylistActions.removeAllPlaylists()
                         );
-                        console.error(error);
+                        this.store.dispatch(PlaylistActions.loadPlaylists());
                     }
-                };
-                reader.readAsText(file);
+
+                    this.setSettings();
+                    this.openSettingsSnackbar(
+                        this.buildBackupImportSummary(summary)
+                    );
+
+                    if (summary.errors.length > 0) {
+                        console.error(
+                            'Playlist backup import completed with issues:',
+                            summary.errors
+                        );
+                    }
+                } catch (error) {
+                    console.error('Failed to import playlist backup:', error);
+                    this.openSettingsSnackbar(
+                        error instanceof Error
+                            ? error.message
+                            : this.translate.instant('SETTINGS.IMPORT_ERROR')
+                    );
+                }
             }
         });
 
         input.click();
     }
 
-    removeAll() {
-        this.dialogService.openConfirmDialog({
-            title: this.translate.instant('SETTINGS.REMOVE_DIALOG.TITLE'),
-            message: this.translate.instant('SETTINGS.REMOVE_DIALOG.MESSAGE'),
-            onConfirm: async (): Promise<void> => {
-                if (this.isRemovingAllPlaylists()) {
-                    return;
-                }
+    private buildBackupImportSummary(
+        summary: PlaylistBackupImportSummary
+    ): string {
+        return `Backup import finished: ${summary.imported} imported, ${summary.merged} merged, ${summary.skipped} skipped, ${summary.failed} failed.`;
+    }
 
-                this.isRemovingAllPlaylists.set(true);
+    private async waitForUiFeedbackFrame(): Promise<void> {
+        if (typeof window.requestAnimationFrame !== 'function') {
+            await Promise.resolve();
+            return;
+        }
 
-                try {
-                    await firstValueFrom(this.playlistsService.removeAll());
-                    this.store.dispatch(PlaylistActions.removeAllPlaylists());
-                    this.openSettingsSnackbar(
-                        this.translate.instant('SETTINGS.PLAYLISTS_REMOVED'),
-                    );
-                } catch (error) {
-                    console.error('Error removing playlists:', error);
-                    this.openSettingsSnackbar(
-                        this.translate.instant('SETTINGS.IMPORT_ERROR'),
-                    );
-                } finally {
-                    this.isRemovingAllPlaylists.set(false);
-                }
-            },
+        await new Promise<void>((resolve) => {
+            window.requestAnimationFrame(() => resolve());
         });
+    }
+
+    removeAll(): void {
+        if (!this.canRemoveAllPlaylists()) {
+            return;
+        }
+
+        this.matDialog
+            .open<
+                SettingsDeleteAllPlaylistsDialogComponent,
+                SettingsDeleteAllPlaylistsDialogData,
+                boolean
+            >(SettingsDeleteAllPlaylistsDialogComponent, {
+                autoFocus: false,
+                data: {
+                    summary: this.playlistDeleteSummary(),
+                },
+                maxWidth: 'calc(100vw - 32px)',
+                restoreFocus: true,
+                width: '460px',
+            })
+            .afterClosed()
+            .pipe(take(1))
+            .subscribe((confirmed) => {
+                if (confirmed) {
+                    void this.removeAllConfirmed();
+                }
+            });
+    }
+
+    private async removeAllConfirmed(): Promise<void> {
+        if (this.isRemovingAllPlaylists()) {
+            return;
+        }
+
+        this.isRemovingAllPlaylists.set(true);
+        this.removeAllProgress.set(null);
+
+        await this.waitForUiFeedbackFrame();
+
+        try {
+            const deleted =
+                this.isDesktop && window.electron
+                    ? await this.deleteAllPlaylistsInElectron()
+                    : await this.deleteAllPlaylistsInBrowser();
+
+            if (!deleted) {
+                throw new Error('Delete all playlists returned success=false');
+            }
+
+            this.store.dispatch(PlaylistActions.removeAllPlaylists());
+            this.openSettingsSnackbar(
+                this.translate.instant('SETTINGS.PLAYLISTS_REMOVED')
+            );
+        } catch (error) {
+            console.error('Error removing playlists:', error);
+            this.openSettingsSnackbar(
+                this.translate.instant('SETTINGS.PLAYLISTS_REMOVE_FAILED')
+            );
+        } finally {
+            this.removeAllProgress.set(null);
+            this.isRemovingAllPlaylists.set(false);
+        }
+    }
+
+    private async deleteAllPlaylistsInElectron(): Promise<boolean> {
+        return this.databaseService.deleteAllPlaylists({
+            operationId: this.databaseService.createOperationId(
+                'settings-delete-all-playlists'
+            ),
+            onEvent: (event) => this.handleDeleteAllPlaylistsEvent(event),
+        });
+    }
+
+    private async deleteAllPlaylistsInBrowser(): Promise<boolean> {
+        await firstValueFrom(this.playlistsService.removeAll());
+        return true;
+    }
+
+    private handleDeleteAllPlaylistsEvent(event: DbOperationEvent): void {
+        this.removeAllProgress.set(event);
     }
 
     private setupSectionObserver(): void {

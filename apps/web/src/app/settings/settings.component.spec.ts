@@ -8,6 +8,7 @@ import {
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -17,17 +18,20 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Store } from '@ngrx/store';
-import { provideMockStore } from '@ngrx/store/testing';
+import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { EpgService } from '@iptvnator/epg/data-access';
-import {
-    MockModule,
-    MockProvider,
-} from 'ng-mocks';
+import { MockModule, MockProvider } from 'ng-mocks';
 import { DialogService } from 'components';
-import { DataService, PlaylistsService } from 'services';
+import {
+    DatabaseService,
+    DataService,
+    PlaylistBackupService,
+    PlaylistsService,
+} from 'services';
 import {
     Language,
+    PlaylistMeta,
     StartupBehavior,
     StreamFormat,
     Theme,
@@ -37,12 +41,16 @@ import { SettingsComponent } from './settings.component';
 
 import { signal } from '@angular/core';
 import { NgxIndexedDBService } from 'ngx-indexed-db';
-import { from, of, Subject } from 'rxjs';
+import { from, of } from 'rxjs';
 import { ElectronServiceStub } from '../services/electron.service.stub';
 import { SettingsStore } from '../services/settings-store.service';
 import { SettingsService } from '../services/settings.service';
 import { SettingsContextService } from '@iptvnator/workspace/shell/util';
-import { PlaylistActions } from 'm3u-state';
+import {
+    PlaylistActions,
+    selectAllPlaylistsMeta,
+    selectIsEpgAvailable,
+} from 'm3u-state';
 
 class MatSnackBarStub {
     open = jest.fn();
@@ -90,18 +98,15 @@ class MockSettingsStore {
 }
 
 class MockSettingsService {
-    getAppVersion = jest
-        .fn()
-        .mockReturnValue(from(Promise.resolve('1.0.0')));
+    getAppVersion = jest.fn().mockReturnValue(from(Promise.resolve('1.0.0')));
     changeTheme = jest.fn();
-    isVersionOutdated = jest
-        .fn()
-        .mockImplementation((currentVersion: string, latestVersion: string) =>
+    isVersionOutdated = jest.fn().mockImplementation(
+        (currentVersion: string, latestVersion: string) =>
             currentVersion.localeCompare(latestVersion, undefined, {
                 numeric: true,
                 sensitivity: 'base',
             }) < 0
-        );
+    );
 }
 
 describe('SettingsComponent', () => {
@@ -114,9 +119,24 @@ describe('SettingsComponent', () => {
     let epgService: EpgService;
     let dialogService: DialogService;
     let playlistsService: PlaylistsService;
+    let playlistBackupService: PlaylistBackupService;
     let store: Store;
+    let mockStore: MockStore;
+    let databaseService: DatabaseService;
     let snackBar: MatSnackBarStub;
     const originalElectron = window.electron;
+    const importDate = '2026-04-21T00:00:00.000Z';
+
+    const createPlaylistMeta = (
+        overrides: Partial<PlaylistMeta> = {}
+    ): PlaylistMeta => ({
+        _id: overrides._id ?? 'playlist-id',
+        title: overrides.title ?? 'Playlist',
+        count: overrides.count ?? 10,
+        importDate: overrides.importDate ?? importDate,
+        autoRefresh: overrides.autoRefresh ?? false,
+        ...overrides,
+    });
 
     beforeEach(waitForAsync(() => {
         TestBed.configureTestingModule({
@@ -129,6 +149,9 @@ describe('SettingsComponent', () => {
                 MockProvider(DialogService, {
                     openConfirmDialog: jest.fn(),
                 }),
+                MockProvider(MatDialog, {
+                    open: jest.fn(),
+                }),
                 { provide: SettingsService, useClass: MockSettingsService },
                 { provide: MatSnackBar, useClass: MatSnackBarStub },
                 { provide: DataService, useClass: ElectronServiceStub },
@@ -136,7 +159,12 @@ describe('SettingsComponent', () => {
                     provide: Router,
                     useClass: MockRouter,
                 },
-                provideMockStore(),
+                provideMockStore({
+                    selectors: [
+                        { selector: selectAllPlaylistsMeta, value: [] },
+                        { selector: selectIsEpgAvailable, value: false },
+                    ],
+                }),
                 {
                     provide: NgxIndexedDBService,
                     useValue: {},
@@ -144,6 +172,33 @@ describe('SettingsComponent', () => {
                 MockProvider(PlaylistsService, {
                     getAllData: jest.fn().mockReturnValue(of([])),
                     removeAll: jest.fn(),
+                }),
+                MockProvider(DatabaseService, {
+                    createOperationId: jest
+                        .fn()
+                        .mockReturnValue('delete-all-op'),
+                    deleteAllPlaylists: jest.fn().mockResolvedValue(true),
+                }),
+                MockProvider(PlaylistBackupService, {
+                    exportBackup: jest.fn().mockResolvedValue({
+                        defaultFileName:
+                            'iptvnator-playlist-backup-2026-04-21.json',
+                        json: '{}',
+                        manifest: {
+                            kind: 'iptvnator-playlist-backup',
+                            version: 1,
+                            exportedAt: '2026-04-21T00:00:00.000Z',
+                            includeSecrets: true,
+                            playlists: [],
+                        },
+                    }),
+                    importBackup: jest.fn().mockResolvedValue({
+                        imported: 0,
+                        merged: 0,
+                        skipped: 0,
+                        failed: 0,
+                        errors: [],
+                    }),
                 }),
             ],
             imports: [
@@ -172,15 +227,15 @@ describe('SettingsComponent', () => {
                 staleUrls: [],
             }),
             clearEpgData: jest.fn().mockResolvedValue({ success: true }),
-            forceFetchEpg: jest
-                .fn()
-                .mockResolvedValue({ success: true }),
+            forceFetchEpg: jest.fn().mockResolvedValue({ success: true }),
             getAppVersion: jest.fn().mockResolvedValue('1.0.0'),
             getLocalIpAddresses: jest.fn().mockResolvedValue([]),
             platform: 'linux',
+            saveFileDialog: jest.fn().mockResolvedValue('/tmp/backup.json'),
             setMpvPlayerPath: jest.fn().mockResolvedValue(undefined),
             setVlcPlayerPath: jest.fn().mockResolvedValue(undefined),
             updateSettings: jest.fn().mockResolvedValue(undefined),
+            writeFile: jest.fn().mockResolvedValue({ success: true }),
         } as unknown as typeof window.electron;
 
         fixture = TestBed.createComponent(SettingsComponent);
@@ -191,16 +246,29 @@ describe('SettingsComponent', () => {
         epgService = TestBed.inject(EpgService);
         dialogService = TestBed.inject(DialogService);
         playlistsService = TestBed.inject(PlaylistsService);
+        playlistBackupService = TestBed.inject(PlaylistBackupService);
         store = TestBed.inject(Store);
+        mockStore = TestBed.inject(MockStore);
+        databaseService = TestBed.inject(DatabaseService);
         snackBar = TestBed.inject(MatSnackBar) as unknown as MatSnackBarStub;
 
         component = fixture.componentInstance;
+        component.checkAppVersion = jest.fn();
+        component.fetchLocalIpAddresses = jest
+            .fn()
+            .mockResolvedValue(undefined);
         fixture.detectChanges();
     });
 
     afterEach(() => {
         window.electron = originalElectron;
     });
+
+    function setPlaylists(playlists: PlaylistMeta[]): void {
+        mockStore.overrideSelector(selectAllPlaylistsMeta, playlists);
+        mockStore.refreshState();
+        fixture.detectChanges();
+    }
 
     it('should create and init component', () => {
         expect(component).toBeTruthy();
@@ -245,9 +313,8 @@ describe('SettingsComponent', () => {
             const scrollFixture = TestBed.createComponent(SettingsComponent);
             const scrollComponent = scrollFixture.componentInstance;
             const settingsContext = TestBed.inject(SettingsContextService);
-            const originalGetElementById = document.getElementById.bind(
-                document
-            );
+            const originalGetElementById =
+                document.getElementById.bind(document);
             const scrollTo = jest.fn();
             const scrollRoot = {
                 scrollTop: 96,
@@ -381,30 +448,129 @@ describe('SettingsComponent', () => {
         });
     });
 
-    it('removes all playlists with a busy state and dispatches store cleanup after success', async () => {
-        const removal$ = new Subject<void>();
-        const dispatchSpy = jest.spyOn(store, 'dispatch');
+    it('disables the global wipe action when there are no playlists', () => {
+        setPlaylists([]);
 
-        (dialogService.openConfirmDialog as jest.Mock).mockImplementation(
-            ({ onConfirm }: { onConfirm: () => Promise<void> }) => {
-                void onConfirm();
-            }
-        );
-        (playlistsService.removeAll as jest.Mock).mockReturnValue(
-            removal$.asObservable()
-        );
-        jest.spyOn(translate, 'instant').mockImplementation((key) => key);
+        const deleteButton = (
+            fixture.nativeElement as HTMLElement
+        ).querySelector('.danger-zone__button') as HTMLButtonElement | null;
+
+        expect(component.canRemoveAllPlaylists()).toBe(false);
+        expect(deleteButton?.disabled).toBe(true);
+    });
+
+    it('opens the dedicated delete-all dialog with the current playlist type summary', () => {
+        setPlaylists([
+            createPlaylistMeta({ _id: 'm3u-1' }),
+            createPlaylistMeta({
+                _id: 'xtream-1',
+                serverUrl: 'http://xtream.example',
+            }),
+            createPlaylistMeta({
+                _id: 'stalker-1',
+                macAddress: '00:11:22:33:44:55',
+            }),
+        ]);
+
+        const openSpy = jest
+            .spyOn((component as any).matDialog, 'open')
+            .mockReturnValue({
+                afterClosed: () => of(false),
+            } as any);
 
         component.removeAll();
 
-        expect(component.isRemovingAllPlaylists()).toBe(true);
-        expect(playlistsService.removeAll).toHaveBeenCalled();
+        expect(component.playlistDeleteSummary()).toEqual({
+            total: 3,
+            m3u: 1,
+            xtream: 1,
+            stalker: 1,
+        });
+        expect(openSpy).toHaveBeenCalledWith(
+            expect.any(Function),
+            expect.objectContaining({
+                data: {
+                    summary: {
+                        total: 3,
+                        m3u: 1,
+                        xtream: 1,
+                        stalker: 1,
+                    },
+                },
+            })
+        );
+    });
 
-        removal$.next();
-        removal$.complete();
+    it('tracks Electron delete-all progress and dispatches store cleanup after success', async () => {
+        setPlaylists([
+            createPlaylistMeta({ _id: 'm3u-1' }),
+            createPlaylistMeta({
+                _id: 'xtream-1',
+                serverUrl: 'http://xtream.example',
+            }),
+        ]);
+
+        const dispatchSpy = jest.spyOn(store, 'dispatch');
+        (databaseService.deleteAllPlaylists as jest.Mock).mockClear();
+        jest.spyOn((component as any).matDialog, 'open').mockReturnValue({
+            afterClosed: () => of(true),
+        } as any);
+        jest.spyOn(translate, 'instant').mockImplementation(
+            (key: string, params?: Record<string, number>) => {
+                if (key === 'SETTINGS.REMOVE_ALL_PROGRESS') {
+                    return `${params?.current}/${params?.total}`;
+                }
+                return key;
+            }
+        );
+        jest.spyOn(
+            component as any,
+            'waitForUiFeedbackFrame'
+        ).mockResolvedValue(undefined);
+
+        let resolveDelete: (value: boolean) => void = () => undefined;
+        (databaseService.deleteAllPlaylists as jest.Mock).mockImplementation(
+            ({
+                onEvent,
+            }: {
+                onEvent?: (event: {
+                    operation: string;
+                    status: string;
+                    current?: number;
+                    total?: number;
+                }) => void;
+            }) => {
+                onEvent?.({
+                    operation: 'delete-all-playlists',
+                    status: 'progress',
+                    current: 3,
+                    total: 7,
+                });
+
+                return new Promise<boolean>((resolve) => {
+                    resolveDelete = resolve;
+                });
+            }
+        );
+
+        component.removeAll();
+        await Promise.resolve();
+        fixture.detectChanges();
+
+        expect(component.isRemovingAllPlaylists()).toBe(true);
+        expect(component.removeAllProgressLabel()).toBe('3/7');
+        expect(databaseService.deleteAllPlaylists).toHaveBeenCalledWith(
+            expect.objectContaining({
+                operationId: 'delete-all-op',
+                onEvent: expect.any(Function),
+            })
+        );
+
+        resolveDelete(true);
         await fixture.whenStable();
 
         expect(component.isRemovingAllPlaylists()).toBe(false);
+        expect(component.removeAllProgress()).toBeNull();
         expect(dispatchSpy).toHaveBeenCalledWith(
             PlaylistActions.removeAllPlaylists()
         );
@@ -417,6 +583,50 @@ describe('SettingsComponent', () => {
                 panelClass: ['settings-snackbar'],
                 verticalPosition: 'bottom',
             }
+        );
+    });
+
+    it('falls back to PlaylistsService.removeAll outside Electron', async () => {
+        fixture.destroy();
+        window.electron = undefined as unknown as typeof window.electron;
+
+        const browserFixture = TestBed.createComponent(SettingsComponent);
+        const browserComponent = browserFixture.componentInstance;
+        browserComponent.checkAppVersion = jest.fn();
+        browserComponent.fetchLocalIpAddresses = jest
+            .fn()
+            .mockResolvedValue(undefined);
+        browserFixture.detectChanges();
+
+        mockStore.overrideSelector(selectAllPlaylistsMeta, [
+            createPlaylistMeta({ _id: 'browser-m3u' }),
+        ]);
+        mockStore.refreshState();
+        browserFixture.detectChanges();
+
+        jest.spyOn((browserComponent as any).matDialog, 'open').mockReturnValue(
+            {
+                afterClosed: () => of(true),
+            } as any
+        );
+        jest.spyOn(
+            browserComponent as any,
+            'waitForUiFeedbackFrame'
+        ).mockResolvedValue(undefined);
+        (databaseService.deleteAllPlaylists as jest.Mock).mockClear();
+        (playlistsService.removeAll as jest.Mock).mockClear();
+        (playlistsService.removeAll as jest.Mock).mockReturnValue(
+            of(undefined)
+        );
+        const dispatchSpy = jest.spyOn(store, 'dispatch');
+
+        browserComponent.removeAll();
+        await browserFixture.whenStable();
+
+        expect(playlistsService.removeAll).toHaveBeenCalled();
+        expect(databaseService.deleteAllPlaylists).not.toHaveBeenCalled();
+        expect(dispatchSpy).toHaveBeenCalledWith(
+            PlaylistActions.removeAllPlaylists()
         );
     });
 
@@ -476,6 +686,59 @@ describe('SettingsComponent', () => {
         expect(refreshSpy).toHaveBeenCalled();
     });
 
+    it('shows an export busy state until the backup file has been written', async () => {
+        let resolveExport: (value: {
+            defaultFileName: string;
+            json: string;
+            manifest: {
+                kind: string;
+                version: number;
+                exportedAt: string;
+                includeSecrets: boolean;
+                playlists: never[];
+            };
+        }) => void = () => undefined;
+
+        (playlistBackupService.exportBackup as jest.Mock).mockReturnValueOnce(
+            new Promise((resolve) => {
+                resolveExport = resolve;
+            })
+        );
+
+        const exportPromise = component.exportData();
+
+        expect(component.isExportingData()).toBe(true);
+
+        resolveExport({
+            defaultFileName: 'iptvnator-playlist-backup-2026-04-21.json',
+            json: '{}',
+            manifest: {
+                kind: 'iptvnator-playlist-backup',
+                version: 1,
+                exportedAt: '2026-04-21T00:00:00.000Z',
+                includeSecrets: true,
+                playlists: [],
+            },
+        });
+
+        await exportPromise;
+
+        expect(window.electron.saveFileDialog).toHaveBeenCalledWith(
+            'iptvnator-playlist-backup-2026-04-21.json',
+            [
+                {
+                    extensions: ['json'],
+                    name: 'JSON',
+                },
+            ]
+        );
+        expect(window.electron.writeFile).toHaveBeenCalledWith(
+            '/tmp/backup.json',
+            '{}'
+        );
+        expect(component.isExportingData()).toBe(false);
+    });
+
     it('shows a failure snackbar and skips refresh when clearing EPG data rejects', async () => {
         (window.electron.clearEpgData as jest.Mock).mockRejectedValueOnce(
             new Error('boom')
@@ -518,7 +781,9 @@ describe('SettingsComponent', () => {
         const nativeElement = fixture.nativeElement as HTMLElement;
 
         expect(
-            nativeElement.querySelector('[data-test-id="toggle-show-dashboard"]')
+            nativeElement.querySelector(
+                '[data-test-id="toggle-show-dashboard"]'
+            )
         ).not.toBeNull();
         expect(component.settingsForm.value.showDashboard).toBe(true);
         expect(component.settingsForm.value.startupBehavior).toBe(

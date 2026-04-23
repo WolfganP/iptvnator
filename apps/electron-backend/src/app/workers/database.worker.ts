@@ -4,6 +4,10 @@ import {
 } from './database.worker-connection';
 import { parentPort } from 'worker_threads';
 import type {
+    XtreamBackupFavoriteItem,
+    XtreamBackupRecentlyViewedItem,
+} from 'shared-interfaces';
+import type {
     DbOperationEvent,
     DbWorkerIncomingMessage,
     DbWorkerMessage,
@@ -39,7 +43,9 @@ import {
     saveContent,
     searchContent,
 } from '../database/operations/content.operations';
+import { setContentBackdropIfMissing } from '../database/operations/content-backdrop.operations';
 import {
+    clearAllPlaybackPositions,
     clearPlaybackPosition,
     getAllPlaybackPositions,
     getPlaybackPosition,
@@ -167,9 +173,7 @@ function createOperationController(config: {
     const { operationId, operation, playlistId, requestId } = config;
     const cancellable = config.cancellable ?? true;
     const activeState =
-        operationId && cancellable
-            ? { cancelled: false }
-            : null;
+        operationId && cancellable ? { cancelled: false } : null;
 
     if (operationId && activeState) {
         activeOperations.set(operationId, activeState);
@@ -232,8 +236,7 @@ function createOperationController(config: {
         emitError: (error, event) => {
             send('error', {
                 ...event,
-                error:
-                    error instanceof Error ? error.message : String(error),
+                error: error instanceof Error ? error.message : String(error),
             });
         },
         cleanup: () => {
@@ -343,8 +346,19 @@ async function executeRequest(message: DbWorkerRequestMessage) {
             const payload = message.payload as {
                 kind?: 'all' | 'vod' | 'series';
                 limit?: number;
+                playlistType?:
+                    | 'xtream'
+                    | 'stalker'
+                    | 'm3u-file'
+                    | 'm3u-text'
+                    | 'm3u-url';
             };
-            return getGlobalRecentlyAdded(db, payload.kind, payload.limit);
+            return getGlobalRecentlyAdded(
+                db,
+                payload.kind,
+                payload.limit,
+                payload.playlistType
+            );
         }
 
         case 'DB_SAVE_CONTENT': {
@@ -408,6 +422,18 @@ async function executeRequest(message: DbWorkerRequestMessage) {
                 payload.xtreamId,
                 payload.playlistId,
                 payload.contentType
+            );
+        }
+
+        case 'DB_SET_CONTENT_BACKDROP_IF_MISSING': {
+            const payload = message.payload as {
+                contentId: number;
+                backdropUrl?: string;
+            };
+            return setContentBackdropIfMissing(
+                db,
+                payload.contentId,
+                payload.backdropUrl
             );
         }
 
@@ -614,8 +640,8 @@ async function executeRequest(message: DbWorkerRequestMessage) {
         case 'DB_RESTORE_XTREAM_USER_DATA': {
             const payload = message.payload as {
                 playlistId: string;
-                favoritedXtreamIds: number[];
-                recentlyViewedXtreamIds: { xtreamId: number; viewedAt: string }[];
+                favorites: XtreamBackupFavoriteItem[];
+                recentlyViewed: XtreamBackupRecentlyViewedItem[];
                 operationId?: string;
             };
 
@@ -628,8 +654,8 @@ async function executeRequest(message: DbWorkerRequestMessage) {
                 },
                 async (controller) => {
                     const totalItems =
-                        payload.favoritedXtreamIds.length +
-                        payload.recentlyViewedXtreamIds.length;
+                        payload.favorites.length +
+                        payload.recentlyViewed.length;
                     controller.emitStarted({
                         phase: DB_OPERATION_PHASES.RESTORING_FAVORITES,
                         current: 0,
@@ -639,8 +665,8 @@ async function executeRequest(message: DbWorkerRequestMessage) {
                     const result = await restoreXtreamUserData(
                         db,
                         payload.playlistId,
-                        payload.favoritedXtreamIds,
-                        payload.recentlyViewedXtreamIds,
+                        payload.favorites,
+                        payload.recentlyViewed,
                         controller.control
                     );
 
@@ -659,8 +685,11 @@ async function executeRequest(message: DbWorkerRequestMessage) {
             const payload = message.payload as {
                 contentId: number;
                 playlistId: string;
+                backdropUrl?: string;
             };
-            return addFavorite(db, payload.contentId, payload.playlistId);
+            return addFavorite(db, payload.contentId, payload.playlistId, {
+                backdropUrl: payload.backdropUrl,
+            });
         }
 
         case 'DB_REMOVE_FAVORITE': {
@@ -712,8 +741,11 @@ async function executeRequest(message: DbWorkerRequestMessage) {
             const payload = message.payload as {
                 contentId: number;
                 playlistId: string;
+                backdropUrl?: string;
             };
-            return addRecentItem(db, payload.contentId, payload.playlistId);
+            return addRecentItem(db, payload.contentId, payload.playlistId, {
+                backdropUrl: payload.backdropUrl,
+            });
         }
 
         case 'DB_CLEAR_PLAYLIST_RECENT_ITEMS': {
@@ -740,7 +772,12 @@ async function executeRequest(message: DbWorkerRequestMessage) {
                     episodeNumber?: number;
                     positionSeconds: number;
                     durationSeconds?: number;
-                    playlistType?: 'xtream' | 'stalker' | 'm3u-file' | 'm3u-text' | 'm3u-url';
+                    playlistType?:
+                        | 'xtream'
+                        | 'stalker'
+                        | 'm3u-file'
+                        | 'm3u-text'
+                        | 'm3u-url';
                 };
             };
             return savePlaybackPosition(db, payload.playlistId, payload.data);
@@ -789,6 +826,11 @@ async function executeRequest(message: DbWorkerRequestMessage) {
             return getAllPlaybackPositions(db, payload.playlistId);
         }
 
+        case 'DB_CLEAR_ALL_PLAYBACK_POSITIONS': {
+            const payload = message.payload as { playlistId: string };
+            return clearAllPlaybackPositions(db, payload.playlistId);
+        }
+
         case 'DB_CLEAR_PLAYBACK_POSITION': {
             const payload = message.payload as {
                 playlistId: string;
@@ -823,7 +865,11 @@ parentPort.on('message', async (message: DbWorkerIncomingMessage) => {
             result,
         });
     } catch (error) {
-        console.error(loggerLabel, `Error handling ${message.operation}:`, error);
+        console.error(
+            loggerLabel,
+            `Error handling ${message.operation}:`,
+            error
+        );
         postMessage({
             type: 'response',
             requestId: message.requestId,

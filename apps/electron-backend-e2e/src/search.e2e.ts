@@ -13,6 +13,7 @@ import {
     importM3uPlaylistFromNativeDialog,
     launchElectronApp,
     m3uFixturePath,
+    openGlobalFavorites,
     resetMockServers,
     stalkerMockServer,
     test,
@@ -205,12 +206,12 @@ test.describe('Electron Workspace Search', () => {
 
             await fillWorkspaceSearch(app.mainWindow, sample.groupTitle);
 
-            await expectPathname(
-                app.mainWindow,
-                /\/workspace\/playlists\/[^/]+\/favorites$/
-            );
+            await expectPathname(app.mainWindow, /\/workspace\/global-favorites$/);
             await expectQueryParam(app.mainWindow, 'q', sample.groupTitle);
-            await expectWorkspaceSearchScope(app.mainWindow, 'Favorites');
+            await expectWorkspaceSearchScope(
+                app.mainWindow,
+                'Global favorites'
+            );
             await expect(
                 channelItemByTitle(app.mainWindow, sample.targetTitle).first()
             ).toBeVisible();
@@ -222,7 +223,7 @@ test.describe('Electron Workspace Search', () => {
         }
     });
 
-    test('@search @m3u filters global favorites from the workspace header without leaving the persisted query model', async ({
+    test('@search @m3u filters global favorites from the workspace rail without leaving the persisted query model', async ({
         dataDir,
     }) => {
         const sample = loadM3uSearchFixture();
@@ -233,12 +234,7 @@ test.describe('Electron Workspace Search', () => {
             await waitForM3uCatalog(app.mainWindow);
             await toggleFavoriteForChannel(app.mainWindow, sample.targetTitle);
             await toggleFavoriteForChannel(app.mainWindow, sample.controlTitle);
-            await app.mainWindow
-                .getByRole('button', {
-                    name: 'All favorites (all playlists)',
-                    exact: true,
-                })
-                .click();
+            await openGlobalFavorites(app.mainWindow);
 
             await expectPathname(
                 app.mainWindow,
@@ -565,10 +561,7 @@ test.describe('Electron Workspace Search', () => {
             );
 
             await openWorkspaceSection(app.mainWindow, 'Favorites');
-            await expectPathname(
-                app.mainWindow,
-                /\/workspace\/xtreams\/[^/]+\/favorites$/
-            );
+            await expectPathname(app.mainWindow, /\/workspace\/global-favorites$/);
             await expect(
                 contentCardByTitle(
                     app.mainWindow,
@@ -592,7 +585,10 @@ test.describe('Electron Workspace Search', () => {
                 'q',
                 resolvedTitles.targetTitle
             );
-            await expectWorkspaceSearchScope(app.mainWindow, 'Favorites');
+            await expectWorkspaceSearchScope(
+                app.mainWindow,
+                'Global favorites'
+            );
             await expect(
                 contentCardByTitle(
                     app.mainWindow,
@@ -805,10 +801,7 @@ test.describe('Electron Workspace Search', () => {
             await toggleFavoriteForChannel(app.mainWindow, sample.controlTitle);
 
             await openWorkspaceSection(app.mainWindow, 'Favorites');
-            await expectPathname(
-                app.mainWindow,
-                /\/workspace\/stalker\/[^/]+\/favorites$/
-            );
+            await expectPathname(app.mainWindow, /\/workspace\/global-favorites$/);
             await expect(
                 channelItemByTitle(app.mainWindow, sample.targetTitle).first()
             ).toBeVisible({ timeout: 20000 });
@@ -819,7 +812,10 @@ test.describe('Electron Workspace Search', () => {
             await fillWorkspaceSearch(app.mainWindow, sample.targetTitle);
 
             await expectQueryParam(app.mainWindow, 'q', sample.targetTitle);
-            await expectWorkspaceSearchScope(app.mainWindow, 'Favorites');
+            await expectWorkspaceSearchScope(
+                app.mainWindow,
+                'Global favorites'
+            );
             await expect(
                 channelItemByTitle(app.mainWindow, sample.targetTitle).first()
             ).toBeVisible();
@@ -1231,6 +1227,11 @@ async function clickCategoryByNameExact(
 }
 
 async function openWorkspaceSection(page: Page, label: string): Promise<void> {
+    if (label === 'Favorites') {
+        await openGlobalFavorites(page);
+        return;
+    }
+
     await page.getByRole('link', { name: label, exact: true }).click();
 }
 

@@ -1,5 +1,11 @@
 import 'jest-extended';
 import { ExternalPlayerSession } from './libs/shared/interfaces/src/lib/external-player-session.interface';
+import { PlaybackPositionData } from './libs/shared/interfaces/src/lib/playback-position.interface';
+import {
+    XtreamBackupFavoriteItem,
+    XtreamBackupHiddenCategory,
+    XtreamBackupRecentlyViewedItem,
+} from './libs/shared/interfaces/src/lib/playlist-backup.interface';
 import {
     PlaylistRefreshEvent,
     PlaylistRefreshPayload,
@@ -156,23 +162,14 @@ declare global {
                 operationId?: string
             ) => Promise<{
                 success: boolean;
-                favoritedXtreamIds: number[];
-                recentlyViewedXtreamIds: {
-                    xtreamId: number;
-                    viewedAt: string;
-                }[];
-                hiddenCategories: {
-                    xtreamId: number;
-                    type: string;
-                }[];
+                favorites: XtreamBackupFavoriteItem[];
+                recentlyViewed: XtreamBackupRecentlyViewedItem[];
+                hiddenCategories: XtreamBackupHiddenCategory[];
             }>;
             dbRestoreXtreamUserData: (
                 playlistId: string,
-                favoritedXtreamIds: number[],
-                recentlyViewedXtreamIds: {
-                    xtreamId: number;
-                    viewedAt: string;
-                }[],
+                favorites: XtreamBackupFavoriteItem[],
+                recentlyViewed: XtreamBackupRecentlyViewedItem[],
                 operationId?: string
             ) => Promise<{ success: boolean }>;
             dbHasCategories: (
@@ -225,14 +222,21 @@ declare global {
             ) => Promise<any[]>;
             dbGetGlobalRecentlyAdded: (
                 kind: 'all' | 'vod' | 'series',
-                limit?: number
+                limit?: number,
+                playlistType?:
+                    | 'xtream'
+                    | 'stalker'
+                    | 'm3u-file'
+                    | 'm3u-text'
+                    | 'm3u-url'
             ) => Promise<any[]>;
             dbGetRecentlyViewed: () => Promise<any[]>;
             dbClearRecentlyViewed: () => Promise<{ success: boolean }>;
             // Favorites
             dbAddFavorite: (
                 contentId: number,
-                playlistId: string
+                playlistId: string,
+                backdropUrl?: string
             ) => Promise<{ success: boolean }>;
             dbRemoveFavorite: (
                 contentId: number,
@@ -252,7 +256,8 @@ declare global {
             dbGetRecentItems: (playlistId: string) => Promise<any[]>;
             dbAddRecentItem: (
                 contentId: number,
-                playlistId: string
+                playlistId: string,
+                backdropUrl?: string
             ) => Promise<{ success: boolean }>;
             dbClearPlaylistRecentItems: (
                 playlistId: string
@@ -266,6 +271,10 @@ declare global {
                 playlistId: string,
                 contentType?: 'live' | 'movie' | 'series'
             ) => Promise<any | null>;
+            dbSetContentBackdropIfMissing: (
+                contentId: number,
+                backdropUrl?: string
+            ) => Promise<{ success: boolean }>;
             dbGetAppState: (key: string) => Promise<string | null>;
             dbSetAppState: (
                 key: string,
@@ -346,8 +355,13 @@ declare global {
             dbGetRecentPlaybackPositions: (
                 playlistId: string,
                 limit?: number
-            ) => Promise<any[]>;
-            dbGetAllPlaybackPositions: (playlistId: string) => Promise<any[]>;
+            ) => Promise<PlaybackPositionData[]>;
+            dbGetAllPlaybackPositions: (
+                playlistId: string
+            ) => Promise<PlaybackPositionData[]>;
+            dbClearAllPlaybackPositions: (
+                playlistId: string
+            ) => Promise<{ success: boolean }>;
             dbClearPlaybackPosition: (
                 playlistId: string,
                 contentXtreamId: number,

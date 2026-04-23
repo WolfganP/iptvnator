@@ -1,6 +1,7 @@
 import { InjectionToken } from '@angular/core';
 import {
     PlaybackPositionData,
+    XtreamPendingRestoreState,
     XtreamCategory,
     XtreamLiveStream,
     XtreamSerieItem,
@@ -53,6 +54,7 @@ export interface XtreamContentItem {
     type: string;
     added_at?: string;
     viewed_at?: string;
+    position?: number | null;
 
     // XtreamItem compatibility fields (optional for search/navigation)
     num?: number;
@@ -275,9 +277,16 @@ export interface IXtreamDataSource {
     getFavorites(playlistId: string): Promise<XtreamContentItem[]>;
 
     /**
-     * Add content to favorites
+     * Add content to favorites.
+     * @param backdropUrl optionally persisted to `content.backdrop_url` when
+     * the row doesn't already have one. Enables the dashboard hero to surface
+     * a cinematic backdrop without a separate round-trip.
      */
-    addFavorite(contentId: number, playlistId: string): Promise<void>;
+    addFavorite(
+        contentId: number,
+        playlistId: string,
+        backdropUrl?: string
+    ): Promise<void>;
 
     /**
      * Remove content from favorites
@@ -299,9 +308,13 @@ export interface IXtreamDataSource {
     getRecentItems(playlistId: string): Promise<XtreamContentItem[]>;
 
     /**
-     * Add item to recently viewed
+     * Add item to recently viewed. See `addFavorite` for `backdropUrl`.
      */
-    addRecentItem(contentId: number, playlistId: string): Promise<void>;
+    addRecentItem(
+        contentId: number,
+        playlistId: string,
+        backdropUrl?: string
+    ): Promise<void>;
 
     /**
      * Remove item from recently viewed
@@ -394,18 +407,16 @@ export interface IXtreamDataSource {
      * Clear all content and categories for a playlist (for refresh)
      * Returns user data (favorites, recently viewed) for restoration
      */
-    clearPlaylistContent(playlistId: string): Promise<{
-        favoritedXtreamIds: number[];
-        recentlyViewedXtreamIds: { xtreamId: number; viewedAt: string }[];
-    }>;
+    clearPlaylistContent(
+        playlistId: string
+    ): Promise<XtreamPendingRestoreState>;
 
     /**
      * Restore user data after refresh
      */
     restoreUserData(
         playlistId: string,
-        favoritedXtreamIds: number[],
-        recentlyViewedXtreamIds: { xtreamId: number; viewedAt: string }[],
+        restoreState: XtreamPendingRestoreState,
         options?: XtreamOperationOptions
     ): Promise<void>;
 }

@@ -7,18 +7,22 @@ import {
     type OperationControl,
     reportOperationProgress,
 } from './operation-control';
+import { persistContentBackdropIfMissing } from './content-backdrop.operations';
 
 const DEFAULT_BATCH_SIZE = 100;
 
 export async function addFavorite(
     db: AppDatabase,
     contentId: number,
-    playlistId: string
+    playlistId: string,
+    options?: { backdropUrl?: string }
 ): Promise<{ success: boolean }> {
     await db.insert(schema.favorites).values({
         contentId,
         playlistId,
     });
+
+    await persistContentBackdropIfMissing(db, contentId, options?.backdropUrl);
 
     return { success: true };
 }
@@ -58,10 +62,7 @@ export async function isFavorite(
     return result[0].count > 0;
 }
 
-export async function getFavorites(
-    db: AppDatabase,
-    playlistId: string
-) {
+export async function getFavorites(db: AppDatabase, playlistId: string) {
     return db
         .select({
             id: schema.content.id,
@@ -73,6 +74,7 @@ export async function getFavorites(
             xtream_id: schema.content.xtreamId,
             type: schema.content.type,
             added_at: schema.favorites.addedAt,
+            position: schema.favorites.position,
         })
         .from(schema.favorites)
         .innerJoin(
@@ -80,7 +82,10 @@ export async function getFavorites(
             eq(schema.favorites.contentId, schema.content.id)
         )
         .where(eq(schema.favorites.playlistId, playlistId))
-        .orderBy(desc(schema.favorites.addedAt));
+        .orderBy(
+            asc(schema.favorites.position),
+            desc(schema.favorites.addedAt)
+        );
 }
 
 export async function getGlobalFavorites(db: AppDatabase) {
@@ -126,6 +131,7 @@ export async function getAllGlobalFavorites(db: AppDatabase) {
             rating: schema.content.rating,
             added: schema.content.added,
             poster_url: schema.content.posterUrl,
+            backdrop_url: schema.content.backdropUrl,
             xtream_id: schema.content.xtreamId,
             type: schema.content.type,
             playlist_id: schema.playlists.id,
