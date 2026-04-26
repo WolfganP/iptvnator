@@ -7,8 +7,8 @@ import {
 } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog } from '@angular/material/dialog';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -17,12 +17,12 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { EpgService } from '@iptvnator/epg/data-access';
 import { Store } from '@ngrx/store';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { EpgService } from '@iptvnator/epg/data-access';
-import { MockModule, MockProvider } from 'ng-mocks';
 import { DialogService } from 'components';
+import { MockModule, MockProvider } from 'ng-mocks';
 import {
     DatabaseService,
     DataService,
@@ -30,6 +30,7 @@ import {
     PlaylistsService,
 } from 'services';
 import {
+    /* EmbeddedMpvSupport, */
     Language,
     PlaylistMeta,
     StartupBehavior,
@@ -40,17 +41,17 @@ import {
 import { SettingsComponent } from './settings.component';
 
 import { signal } from '@angular/core';
-import { NgxIndexedDBService } from 'ngx-indexed-db';
-import { from, of } from 'rxjs';
-import { ElectronServiceStub } from '../services/electron.service.stub';
-import { SettingsStore } from '../services/settings-store.service';
-import { SettingsService } from '../services/settings.service';
 import { SettingsContextService } from '@iptvnator/workspace/shell/util';
 import {
     PlaylistActions,
     selectAllPlaylistsMeta,
     selectIsEpgAvailable,
 } from 'm3u-state';
+import { NgxIndexedDBService } from 'ngx-indexed-db';
+import { from, of } from 'rxjs';
+import { ElectronServiceStub } from '../services/electron.service.stub';
+import { SettingsStore } from '../services/settings-store.service';
+import { SettingsService } from '../services/settings.service';
 
 class MatSnackBarStub {
     open = jest.fn();
@@ -400,6 +401,80 @@ describe('SettingsComponent', () => {
                 ...settings,
             });
         });
+
+        /* it('hides the embedded mpv option when the desktop support probe reports unsupported', async () => {
+            window.electron = {
+                ...window.electron,
+                getEmbeddedMpvSupport: jest.fn().mockResolvedValue({
+                    supported: false,
+                    platform: 'darwin',
+                    reason: 'hidden harness',
+                }),
+            } as unknown as typeof window.electron;
+
+            await component.ngOnInit();
+            await fixture.whenStable();
+
+            expect(
+                component.players().some(
+                    (player) => player.id === VideoPlayer.EmbeddedMpv
+                )
+            ).toBe(false);
+        });
+
+        it('shows the embedded mpv option when the desktop support probe reports supported', async () => {
+            window.electron = {
+                ...window.electron,
+                getEmbeddedMpvSupport: jest.fn().mockResolvedValue({
+                    supported: true,
+                    platform: 'darwin',
+                }),
+            } as unknown as typeof window.electron;
+
+            await component.ngOnInit();
+            await fixture.whenStable();
+
+            expect(
+                component.players().some(
+                    (player) => player.id === VideoPlayer.EmbeddedMpv
+                )
+            ).toBe(true);
+        });
+
+        it('does not block settings initialization while embedded mpv support is pending', async () => {
+            let resolveSupport: (value: EmbeddedMpvSupport) => void;
+            window.electron = {
+                ...window.electron,
+                getEmbeddedMpvSupport: jest.fn(
+                    () =>
+                        new Promise((resolve) => {
+                            resolveSupport = resolve;
+                        })
+                ),
+            } as unknown as typeof window.electron;
+
+            await expect(component.ngOnInit()).resolves.toBeUndefined();
+
+            expect(component.settingsForm.value).toEqual(DEFAULT_SETTINGS);
+            expect(window.electron.getEmbeddedMpvSupport).toHaveBeenCalled();
+            expect(
+                component.players().some(
+                    (player) => player.id === VideoPlayer.EmbeddedMpv
+                )
+            ).toBe(false);
+
+            resolveSupport!({
+                supported: true,
+                platform: 'darwin',
+            });
+            await fixture.whenStable();
+
+            expect(
+                component.players().some(
+                    (player) => player.id === VideoPlayer.EmbeddedMpv
+                )
+            ).toBe(true);
+        }); */
     });
 
     describe('Version check', () => {

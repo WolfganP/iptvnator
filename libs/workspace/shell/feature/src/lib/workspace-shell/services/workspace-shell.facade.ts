@@ -7,7 +7,7 @@ import {
     signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { NavigationEnd, Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { TranslateService } from '@ngx-translate/core';
@@ -116,6 +116,10 @@ export class WorkspaceShellFacade {
 
     private searchDebounceTimeoutId: ReturnType<typeof setTimeout> | null =
         null;
+    private commandPaletteRef: MatDialogRef<
+        WorkspaceCommandPaletteComponent,
+        WorkspaceCommandSelection | undefined
+    > | null = null;
     private readonly onDocumentKeydown = (event: KeyboardEvent): void => {
         if (!(event.ctrlKey || event.metaKey)) {
             return;
@@ -142,6 +146,7 @@ export class WorkspaceShellFacade {
     private readonly playlists = this.store.selectSignal(
         selectAllPlaylistsMeta
     );
+    readonly hasNoPlaylists = computed(() => this.playlists().length === 0);
 
     readonly searchQuery = signal('');
     readonly appliedSearchQuery = signal('');
@@ -719,6 +724,23 @@ export class WorkspaceShellFacade {
         );
     }
 
+    openActiveExternalSessionTarget(): void {
+        const playlistId = this.externalPlaybackSession()?.contentInfo
+            ?.playlistId;
+        if (!playlistId) return;
+
+        const playlist = this.playlists().find((p) => p._id === playlistId);
+        if (!playlist) return;
+
+        if (playlist.serverUrl) {
+            void this.router.navigate(['/workspace', 'xtreams', playlistId]);
+        } else if (playlist.macAddress) {
+            void this.router.navigate(['/workspace', 'stalker', playlistId]);
+        } else {
+            void this.router.navigate(['/workspace', 'playlists', playlistId]);
+        }
+    }
+
     onSearchInput(value: string): void {
         this.searchQuery.set(value);
         this.scheduleSearchApply(value);
@@ -752,6 +774,11 @@ export class WorkspaceShellFacade {
     }
 
     openCommandPalette(): void {
+        if (this.commandPaletteRef) {
+            this.commandPaletteRef.close();
+            return;
+        }
+
         const commands = this.commandPaletteCommands();
         const dialogRef = this.dialog.open<
             WorkspaceCommandPaletteComponent,
@@ -767,11 +794,13 @@ export class WorkspaceShellFacade {
                 query: this.searchQuery(),
             },
         });
+        this.commandPaletteRef = dialogRef;
 
         dialogRef
             .afterClosed()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((selection) => {
+                this.commandPaletteRef = null;
                 if (!selection) {
                     return;
                 }
@@ -1090,6 +1119,41 @@ export class WorkspaceShellFacade {
                     'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_DESCRIPTION',
                 priority: 80,
                 run: () => this.openAddPlaylistDialog(),
+            },
+            {
+                id: 'add-playlist-m3u',
+                group: 'global',
+                icon: 'folder_open',
+                labelKey: 'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_M3U_LABEL',
+                descriptionKey:
+                    'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_M3U_DESCRIPTION',
+                keywords: ['m3u', 'm3u8', 'file', 'url', 'add', 'import'],
+                priority: 79,
+                run: () => this.workspaceActions.openAddPlaylistDialog('url'),
+            },
+            {
+                id: 'add-playlist-xtream',
+                group: 'global',
+                icon: 'cloud',
+                labelKey: 'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_XTREAM_LABEL',
+                descriptionKey:
+                    'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_XTREAM_DESCRIPTION',
+                keywords: ['xtream', 'codes', 'iptv', 'add', 'import'],
+                priority: 78,
+                run: () =>
+                    this.workspaceActions.openAddPlaylistDialog('xtream'),
+            },
+            {
+                id: 'add-playlist-stalker',
+                group: 'global',
+                icon: 'cast',
+                labelKey: 'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_STALKER_LABEL',
+                descriptionKey:
+                    'WORKSPACE.SHELL.COMMANDS.ADD_PLAYLIST_STALKER_DESCRIPTION',
+                keywords: ['stalker', 'portal', 'mac', 'ministra', 'add'],
+                priority: 77,
+                run: () =>
+                    this.workspaceActions.openAddPlaylistDialog('stalker'),
             },
         ];
     }

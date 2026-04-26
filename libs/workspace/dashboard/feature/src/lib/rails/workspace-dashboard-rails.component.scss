@@ -5,6 +5,14 @@
     min-height: 100%;
 }
 
+:host(.rails-page-host--empty) {
+    padding: 0;
+    height: 100%;
+    min-height: 100%;
+    display: flex;
+    overflow: hidden;
+}
+
 .rails-page {
     max-width: 1440px;
     margin: 0 auto;
@@ -12,6 +20,16 @@
     flex-direction: column;
     gap: 32px;
     min-width: 0;
+}
+
+.rails-page--empty {
+    flex: 1;
+    max-width: none;
+    margin: 0;
+    gap: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
 }
 
 // ── Hero ────────────────────────────────────────────────────────────────────
@@ -44,7 +62,8 @@
         transform: translateY(-2px);
         box-shadow:
             0 1px 2px rgba(0, 0, 0, 0.2),
-            0 20px 40px -20px var(--app-selection-glow, rgba(120, 173, 255, 0.55));
+            0 20px 40px -20px
+                var(--app-selection-glow, rgba(120, 173, 255, 0.55));
     }
 
     // No-image fallback keeps the accent gradient so the hero is never flat.
@@ -85,6 +104,21 @@
     filter: none;
     transform: none;
     opacity: 1;
+}
+
+.hero--has-default-backdrop .hero__backdrop {
+    filter: none;
+    transform: none;
+    opacity: 0.95;
+}
+
+.hero__image-probe {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    opacity: 0;
+    pointer-events: none;
 }
 
 // Layer 1: vignette. Scrim behind the poster card (contrast) and on the
@@ -172,12 +206,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background:
-        radial-gradient(
-            circle at 50% 40%,
-            var(--app-selection-surface, rgba(120, 173, 255, 0.2)) 0%,
-            transparent 60%
-        );
+    background: radial-gradient(
+        circle at 50% 40%,
+        var(--app-selection-surface, rgba(120, 173, 255, 0.2)) 0%,
+        transparent 60%
+    );
+    background-size: cover;
+    background-position: center;
 
     mat-icon {
         font-size: 56px;
@@ -253,7 +288,8 @@
     // Explicit min-height anchors the text baseline regardless of font-smoothing
     min-height: 36px;
     box-sizing: border-box;
-    box-shadow: 0 4px 12px -4px var(--app-selection-glow, rgba(120, 173, 255, 0.5));
+    box-shadow: 0 4px 12px -4px
+        var(--app-selection-glow, rgba(120, 173, 255, 0.5));
 
     mat-icon {
         font-size: 20px;
