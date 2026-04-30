@@ -18,9 +18,9 @@ jobs:
         timeout-minutes: 60
         strategy:
             matrix:
-                include:
+                # include:
                     # Linux and Windows
-                    - os: linux
+                      os: linux
                       runner: ubuntu-latest
                       arch: amd64
                     #- os: windows
