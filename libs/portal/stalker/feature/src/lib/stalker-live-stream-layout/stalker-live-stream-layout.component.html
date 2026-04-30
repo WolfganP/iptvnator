@@ -82,20 +82,38 @@
                 <app-web-player-view [streamUrl]="streamUrl()" />
             </div>
         }
-        <div class="epg">
-            <div class="epg-content">
-                @if (isLoadingEpg()) {
-                    <div class="loading-indicator">
-                        <mat-spinner diameter="24" />
-                    </div>
-                } @else {
-                    <app-epg-list
-                        [controlledChannel]="controlledChannel()"
-                        [controlledPrograms]="activeEpgPrograms()"
-                        [controlledArchiveDays]="0"
+        @let canCollapseEpgPanel = !!streamUrl() && isEmbeddedPlayer;
+        <div
+            class="epg"
+            [class.epg-collapsed]="
+                canCollapseEpgPanel && isLiveEpgPanelCollapsed()
+            "
+        >
+            @if (canCollapseEpgPanel) {
+                <app-live-epg-panel
+                    [collapsed]="isLiveEpgPanelCollapsed()"
+                    [summary]="liveEpgPanelSummary()"
+                    [loading]="isLoadingEpg()"
+                    [showDateNavigator]="true"
+                    [selectedDate]="selectedLiveEpgDate()"
+                    (collapsedChange)="onLiveEpgPanelCollapsedChange($event)"
+                    (dateNavigation)="onLiveEpgDateNavigation($event)"
+                >
+                    <ng-container
+                        *ngTemplateOutlet="
+                            epgPanelContent;
+                            context: { unifiedDateNavigator: true }
+                        "
                     />
-                }
-            </div>
+                </app-live-epg-panel>
+            } @else {
+                <ng-container
+                    *ngTemplateOutlet="
+                        epgPanelContent;
+                        context: { unifiedDateNavigator: false }
+                    "
+                />
+            }
         </div>
     } @else {
         <app-portal-empty-state
@@ -104,3 +122,26 @@
         />
     }
 </div>
+
+<ng-template #epgPanelContent let-unifiedDateNavigator="unifiedDateNavigator">
+    <div class="epg-content">
+        @if (isLoadingEpg()) {
+            <div class="loading-indicator">
+                <mat-spinner diameter="24" />
+            </div>
+        } @else {
+            <app-epg-list
+                [controlledChannel]="controlledChannel()"
+                [controlledPrograms]="activeEpgPrograms()"
+                [controlledArchiveDays]="0"
+                [selectedDate]="
+                    unifiedDateNavigator ? selectedLiveEpgDate() : null
+                "
+                [showDateNavigator]="!unifiedDateNavigator"
+                (selectedDateChange)="
+                    unifiedDateNavigator && onLiveEpgSelectedDateChange($event)
+                "
+            />
+        }
+    </div>
+</ng-template>
