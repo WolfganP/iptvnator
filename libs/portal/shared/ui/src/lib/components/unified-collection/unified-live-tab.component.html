@@ -8,6 +8,8 @@
 >
     <app-global-favorites-list
         [channels]="channelsForList()"
+        [mode]="mode()"
+        [favoriteUids]="favoriteUids()"
         [epgMap]="epgMap()"
         [progressTick]="progressTick()"
         [activeUid]="activeUid()"
@@ -76,6 +78,13 @@
                             [channel]="activeChannelForOverlay()!"
                             [volume]="1"
                             [showCaptions]="false"
+                        />
+                    }
+                    @if (player() === 'embedded-mpv') {
+                        <app-web-player-view
+                            [streamUrl]="currentStreamUrl()"
+                            [title]="activeDetail()?.playback?.title ?? ''"
+                            [playback]="activeDetail()?.playback ?? null"
                         />
                     }
                 }
