@@ -3,6 +3,7 @@ import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
+    HostListener,
     computed,
     effect,
     ElementRef,
@@ -13,8 +14,11 @@ import {
     viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import {
     ChannelListItemComponent,
@@ -40,10 +44,12 @@ import {
     WebPlayerViewComponent,
 } from 'shared-portals';
 import {
+    LiveLayoutSidebarStateService,
     PORTAL_PLAYER,
     createLogger,
     getAdjacentChannelItem,
     getChannelItemByNumber,
+    isTypingInInput,
     LiveEpgPanelState,
     persistLiveEpgPanelState,
     restoreLiveEpgPanelState,
@@ -64,8 +70,11 @@ import {
         ChannelListItemComponent,
         ChannelListSkeletonComponent,
         EpgListComponent,
-        MatProgressSpinnerModule,
         LiveEpgPanelComponent,
+        MatButtonModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatTooltipModule,
         NgTemplateOutlet,
         PortalEmptyStateComponent,
         ResizableDirective,
@@ -80,6 +89,9 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
     private readonly portalPlayer = inject(PORTAL_PLAYER);
     private readonly snackBar = inject(MatSnackBar);
     private readonly translate = inject(TranslateService);
+    private readonly liveSidebarStateService = inject(
+        LiveLayoutSidebarStateService
+    );
     private readonly logger = createLogger('StalkerLiveStream');
     readonly selectedCategoryTitle = this.stalkerStore.getSelectedCategoryName;
 
@@ -140,6 +152,7 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
     readonly isLiveEpgPanelCollapsed = computed(
         () => this.liveEpgPanelState() === 'collapsed'
     );
+    readonly isSidebarCollapsed = this.liveSidebarStateService.isCollapsed;
     readonly liveEpgPanelSummary = computed(() =>
         this.toLiveEpgPanelSummary(this.currentProgram())
     );
@@ -378,6 +391,22 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
         const state: LiveEpgPanelState = collapsed ? 'collapsed' : 'expanded';
         this.liveEpgPanelState.set(state);
         persistLiveEpgPanelState(state);
+    }
+
+    toggleSidebar(): void {
+        this.liveSidebarStateService.toggle();
+    }
+
+    @HostListener('document:keydown', ['$event'])
+    handleSidebarShortcut(event: KeyboardEvent): void {
+        if (
+            (event.metaKey || event.ctrlKey) &&
+            event.key.toLowerCase() === 'b' &&
+            !isTypingInInput(event)
+        ) {
+            event.preventDefault();
+            this.toggleSidebar();
+        }
     }
 
     onLiveEpgDateNavigation(direction: EpgDateNavigationDirection): void {

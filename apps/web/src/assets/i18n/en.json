@@ -348,6 +348,11 @@
         "LIGHT_THEME": "Light theme",
         "SYSTEM_THEME": "System theme"
     },
+    "LAYOUT": {
+        "HIDE_CHANNELS_LIST": "Hide channels list",
+        "SHOW_CHANNELS_LIST": "Show channels list",
+        "TOGGLE_SIDEBAR_TOOLTIP": "Toggle channels list (⌘/Ctrl+B)"
+    },
     "CHANNELS": {
         "SEARCH_CHANNEL": "Search channel",
         "UPLOAD_OR_SELECT_OTHER_PLAYLIST": "Upload or select other playlist",
@@ -583,6 +588,7 @@
             "DESELECT_ALL": "Deselect All",
             "SEARCH_PLACEHOLDER": "Search categories...",
             "NO_RESULTS": "No matching categories found",
+            "NO_CATEGORIES": "No categories available",
             "SAVE": "Save"
         }
     },
@@ -885,7 +891,13 @@
                 "SWITCH_PLAYER_LABEL": "Switch player to {{name}}",
                 "SWITCH_PLAYER_DESCRIPTION": "Set {{name}} as the active video player",
                 "SWITCH_PLAYER_FEEDBACK": "Player set to {{name}}"
-            }
+            },
+            "XTREAM_REFRESH_TITLE": "Refreshing playlist",
+            "XTREAM_REFRESH_COLLECTING_DATA": "Preserving your library data...",
+            "XTREAM_REFRESH_DELETING_CONTENT": "Removing cached streams...",
+            "XTREAM_REFRESH_DELETING_CATEGORIES": "Removing cached categories...",
+            "XTREAM_REFRESH_DETAIL_LOCAL": "Keeping favorites, watch history, hidden categories, and playback progress ready for restore after sync.",
+            "XTREAM_REFRESH_PROGRESS": "Local records processed: {{current}} / {{total}}"
         },
         "SOURCES": {
             "TITLE": "Sources",
