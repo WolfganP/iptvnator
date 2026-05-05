@@ -77,6 +77,7 @@ const DEFAULT_SETTINGS = {
     mpvPlayerPath: '',
     mpvReuseInstance: false,
     vlcPlayerPath: '',
+    vlcReuseInstance: false,
     remoteControl: false,
     remoteControlPort: 8765,
     epgUrl: [],
@@ -924,5 +925,29 @@ describe('SettingsComponent', () => {
         expect(updateSettings).toHaveBeenCalledWith(
             component.settingsForm.value
         );
+    });
+
+    it('clears external player paths in Electron when saved as empty', async () => {
+        const mockStore = settingsStore as unknown as MockSettingsStore;
+        mockStore.updateSettings.mockResolvedValue(undefined);
+        const setMpvPlayerPath = jest.spyOn(
+            window.electron,
+            'setMpvPlayerPath'
+        );
+        const setVlcPlayerPath = jest.spyOn(
+            window.electron,
+            'setVlcPlayerPath'
+        );
+
+        component.settingsForm.patchValue({
+            mpvPlayerPath: '',
+            vlcPlayerPath: '',
+        });
+
+        component.onSubmit();
+        await fixture.whenStable();
+
+        expect(setMpvPlayerPath).toHaveBeenCalledWith('');
+        expect(setVlcPlayerPath).toHaveBeenCalledWith('');
     });
 });
