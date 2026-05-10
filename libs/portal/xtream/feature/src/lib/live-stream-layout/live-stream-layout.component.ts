@@ -51,6 +51,7 @@ import {
     EpgViewComponent,
     LiveEpgPanelComponent,
     LiveEpgPanelSummary,
+    type PlaybackFallbackRequest,
     WebPlayerViewComponent,
 } from 'shared-portals';
 import { EpgItem, EpgProgram, ResolvedPortalPlayback } from 'shared-interfaces';
@@ -342,6 +343,7 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
             streamUrl,
             title: item.title ?? item.name ?? '',
             thumbnail: item.poster_url ?? item.stream_icon ?? null,
+            isLive: true,
         });
         if (this.usesEmbeddedPlayer() || !startPlayback) {
             return;
@@ -449,6 +451,13 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
         }
 
         this.playLive(channel, true);
+    }
+
+    handleExternalFallbackRequest(request: PlaybackFallbackRequest): void {
+        void this.portalPlayer.openExternalPlayback(
+            request.playback,
+            request.player
+        );
     }
 
     private getVisibleChannels(): XtreamLiveChannelItem[] {

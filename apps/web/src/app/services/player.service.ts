@@ -10,6 +10,7 @@ import {
     ResolvedPortalPlayback,
     VideoPlayer,
 } from 'shared-interfaces';
+import type { ExternalPlayerName } from 'shared-interfaces';
 import { SettingsStore } from './settings-store.service';
 
 @Injectable({
@@ -36,7 +37,7 @@ export class PlayerService {
         title: string,
         thumbnail?: string,
         hideExternalInfoDialog = true,
-        _isLiveContent = false,
+        isLiveContent = false,
         userAgent?: string,
         referer?: string,
         origin?: string,
@@ -44,12 +45,12 @@ export class PlayerService {
         startTime?: number,
         headers?: Record<string, string>
     ): Promise<ExternalPlayerSession | void> {
-        void _isLiveContent;
         return this.openResolvedPlayback(
             {
                 streamUrl,
                 title,
                 thumbnail,
+                isLive: isLiveContent,
                 startTime,
                 contentInfo,
                 headers,
@@ -66,54 +67,18 @@ export class PlayerService {
         hideExternalInfoDialog = true
     ): Promise<ExternalPlayerSession | void> {
         const player = this.settingsStore.player() ?? VideoPlayer.VideoJs;
-        const {
-            streamUrl,
-            title,
-            thumbnail,
-            userAgent,
-            referer,
-            origin,
-            headers,
-            contentInfo,
-            startTime,
-        } = playback;
+        const { streamUrl, title, contentInfo, startTime } = playback;
 
         if (player === VideoPlayer.MPV) {
             if (!hideExternalInfoDialog) {
                 this.dialog.open(ExternalPlayerInfoDialogComponent);
             }
-            return await this.dataService.sendIpcEvent<ExternalPlayerSession>(
-                OPEN_MPV_PLAYER,
-                {
-                url: streamUrl,
-                title,
-                thumbnail,
-                'user-agent': userAgent,
-                referer: referer,
-                origin: origin,
-                headers,
-                contentInfo,
-                startTime,
-                }
-            );
+            return await this.openExternalPlayback(playback, 'mpv');
         } else if (player === VideoPlayer.VLC) {
             if (!hideExternalInfoDialog) {
                 this.dialog.open(ExternalPlayerInfoDialogComponent);
             }
-            return await this.dataService.sendIpcEvent<ExternalPlayerSession>(
-                OPEN_VLC_PLAYER,
-                {
-                url: streamUrl,
-                title,
-                thumbnail,
-                'user-agent': userAgent,
-                referer: referer,
-                origin: origin,
-                headers,
-                contentInfo,
-                startTime,
-                }
-            );
+            return await this.openExternalPlayback(playback, 'vlc');
         }
 
         return import('@iptvnator/portal/xtream/feature').then(
@@ -130,6 +95,29 @@ export class PlayerService {
                     maxWidth: '1200px',
                     maxHeight: '90vh',
                 });
+            }
+        );
+    }
+
+    async openExternalPlayback(
+        playback: ResolvedPortalPlayback,
+        player: ExternalPlayerName
+    ): Promise<ExternalPlayerSession | void> {
+        const ipcEvent =
+            player === 'mpv' ? OPEN_MPV_PLAYER : OPEN_VLC_PLAYER;
+
+        return await this.dataService.sendIpcEvent<ExternalPlayerSession>(
+            ipcEvent,
+            {
+                url: playback.streamUrl,
+                title: playback.title,
+                thumbnail: playback.thumbnail,
+                'user-agent': playback.userAgent,
+                referer: playback.referer,
+                origin: playback.origin,
+                headers: playback.headers,
+                contentInfo: playback.contentInfo,
+                startTime: playback.startTime,
             }
         );
     }
