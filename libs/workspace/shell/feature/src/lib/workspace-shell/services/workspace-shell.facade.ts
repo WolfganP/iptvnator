@@ -33,9 +33,9 @@ import {
     WorkspaceSearchCapability,
     WorkspaceStartupPreferencesService,
 } from '@iptvnator/workspace/shell/util';
-import { DownloadsService, PlaylistsService, SettingsStore } from 'services';
-import { PlaylistActions, selectAllPlaylistsMeta } from 'm3u-state';
-import { PlaylistMeta } from 'shared-interfaces';
+import { DownloadsService, PlaylistsService, SettingsStore } from '@iptvnator/services';
+import { PlaylistActions, selectAllPlaylistsMeta } from '@iptvnator/m3u-state';
+import { PlaylistMeta } from '@iptvnator/shared/interfaces';
 import {
     WorkspaceAccountInfoData,
     WORKSPACE_SHELL_ACTIONS,
@@ -593,7 +593,10 @@ export class WorkspaceShellFacade {
             if (
                 context?.provider !== 'stalker' ||
                 !section ||
-                (section !== 'vod' && section !== 'series' && section !== 'itv')
+                (section !== 'vod' &&
+                    section !== 'series' &&
+                    section !== 'itv' &&
+                    section !== 'radio')
             ) {
                 return;
             }

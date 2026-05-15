@@ -1,5 +1,6 @@
 export * from './lib/channel.interface';
 export * from './lib/channel.model';
+export * from './lib/dev-logger.util';
 export * from './lib/embedded-mpv-session.interface';
 export * from './lib/epg-channel-metadata.model';
 export * from './lib/epg-channel-with-programs.interface';
@@ -42,6 +43,7 @@ export * from './lib/xtream-vod-stream.interface';
 
 // Stalker interfaces
 export * from './lib/stalker-item.normalizer';
+export * from './lib/stalker-identity.utils';
 export * from './lib/stalker-portal-item.interface';
 export * from './lib/stalker-serial-details.interface';
 export * from './lib/stalker-vod-details.interface';

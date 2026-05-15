@@ -1,7 +1,7 @@
 import { SimpleChange } from '@angular/core';
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 import { TranslateModule } from '@ngx-translate/core';
-import { DataService } from 'services';
+import { DataService } from '@iptvnator/services';
 import { HtmlVideoPlayerComponent } from './html-video-player.component';
 
 describe('HtmlVideoPlayerComponent', () => {
@@ -108,5 +108,37 @@ describe('HtmlVideoPlayerComponent', () => {
         });
 
         expect(issues).toEqual([]);
+    });
+
+    it('keeps raw HLS error object context in emitted playback issue details', () => {
+        const issues: Array<{ details?: string }> = [];
+        component.playbackIssue.subscribe((issue) => {
+            if (issue) issues.push(issue);
+        });
+
+        (
+            component as unknown as {
+                handleHlsError: (
+                    url: string,
+                    data: {
+                        type: string;
+                        details: string;
+                        fatal: boolean;
+                        error?: unknown;
+                    }
+                ) => void;
+            }
+        ).handleHlsError('https://example.com/live/playlist.m3u8', {
+            type: 'networkError',
+            details: 'manifestLoadError',
+            fatal: true,
+            error: {
+                context: 'xhr setup failed',
+                status: 0,
+            },
+        });
+
+        expect(issues[0].details).toContain('xhr setup failed');
+        expect(issues[0].details).toContain('"status":0');
     });
 });

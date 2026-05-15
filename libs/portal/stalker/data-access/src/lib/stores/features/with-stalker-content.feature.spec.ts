@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { patchState, signalStore, withMethods, withState } from '@ngrx/signals';
 import { TranslateService } from '@ngx-translate/core';
-import { DataService } from 'services';
-import { PlaylistMeta, StalkerPortalActions } from 'shared-interfaces';
+import { DataService } from '@iptvnator/services';
+import { PlaylistMeta, StalkerPortalActions } from '@iptvnator/shared/interfaces';
 import { StalkerSessionService } from '../../stalker-session.service';
 import { withStalkerContent } from './with-stalker-content.feature';
 
@@ -181,6 +181,31 @@ describe('withStalkerContent failure states', () => {
             category_id: '7',
             category_name: 'Drama',
         });
+    });
+
+    it('preserves server category order while keeping the all category first', async () => {
+        dataService.sendIpcEvent.mockResolvedValue({
+            js: [
+                { id: 'z', title: 'Zulu' },
+                { id: 'a', title: 'Alpha' },
+                { id: 'm', title: 'Movies' },
+            ],
+        });
+
+        store.setSelectedContentType('vod');
+        store.setCurrentPlaylist(PLAYLIST);
+        void store.isCategoryResourceLoading();
+
+        await waitForCondition(
+            () => dataService.sendIpcEvent.mock.calls.length > 0
+        );
+        await flushResources();
+
+        expect(
+            store
+                .getCategoryResource()
+                .map((category) => category.category_name)
+        ).toEqual(['PORTALS.ALL_CATEGORIES', 'Zulu', 'Alpha', 'Movies']);
     });
 
     it('normalizes content failures into empty collections instead of undefined state', async () => {

@@ -9,7 +9,7 @@ import {
 } from '@ngrx/signals';
 import { TranslateService } from '@ngx-translate/core';
 import { createLogger } from '@iptvnator/portal/shared/util';
-import { DataService } from 'services';
+import { DataService } from '@iptvnator/services';
 import {
     StalkerCategoryItem,
     StalkerContentItem,
@@ -265,18 +265,12 @@ export function withStalkerContent() {
                                     return [];
                                 }
 
-                                const normalizedCategories = response.js
-                                    .map(
-                                        (item): StalkerCategoryItem => ({
-                                            category_name: item.title ?? '',
-                                            category_id: String(item.id),
-                                        })
-                                    )
-                                    .sort((left, right) =>
-                                        left.category_name.localeCompare(
-                                            right.category_name
-                                        )
-                                    );
+                                const normalizedCategories = response.js.map(
+                                    (item): StalkerCategoryItem => ({
+                                        category_name: item.title ?? '',
+                                        category_id: String(item.id),
+                                    })
+                                );
                                 const categories = prependAllCategory(
                                     params.contentType,
                                     params.contentType === 'radio' &&
@@ -303,9 +297,10 @@ export function withStalkerContent() {
                                     error,
                                 });
                                 if (params.contentType === 'radio') {
-                                    const fallback = fallbackRadioCategories(
-                                        translateService
-                                    );
+                                    const fallback =
+                                        fallbackRadioCategories(
+                                            translateService
+                                        );
                                     patchState(store, {
                                         radioCategories: fallback,
                                         categoryError: null,

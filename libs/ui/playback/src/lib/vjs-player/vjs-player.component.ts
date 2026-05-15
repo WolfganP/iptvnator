@@ -11,8 +11,8 @@ import {
     viewChild,
 } from '@angular/core';
 import '@yangkghjh/videojs-aspect-ratio-panel';
-import { getStreamExtensionFromUrl } from 'm3u-utils';
 import mpegts from 'mpegts.js';
+import { createDevLogger } from '@iptvnator/shared/interfaces';
 import videoJs from 'video.js';
 import 'videojs-contrib-quality-levels';
 import 'videojs-quality-selector-hls';
@@ -22,6 +22,7 @@ import {
     classifyMpegTsPlaybackIssue,
     classifyNativePlaybackIssue,
     createPlaybackSourceMetadata,
+    getPlaybackMediaExtensionFromUrl,
 } from '../playback-diagnostics/playback-diagnostics.util';
 
 /**
@@ -35,6 +36,7 @@ type VideoPlayerSource = {
 
 type VideoPlayerOptions = Record<string, unknown> & {
     autoplay?: boolean;
+    isLive?: boolean;
     sources?: VideoPlayerSource[];
 };
 
@@ -88,6 +90,8 @@ type VideoJsPlayer = Omit<
     error: () => { code?: number; message?: string } | null;
 };
 
+const debugVjsPlayer = createDevLogger('VjsPlayer');
+
 @Component({
     selector: 'app-vjs-player',
     templateUrl: './vjs-player.component.html',
@@ -104,6 +108,14 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
     player!: VideoJsPlayer;
     /** mpegts.js player for raw MPEG-TS streams */
     private mpegtsPlayer: mpegts.Player | null = null;
+    private mpegTsVodDurationTarget: HTMLVideoElement | null = null;
+    private readonly mpegTsVodDurationEvents = [
+        'durationchange',
+        'loadedmetadata',
+        'progress',
+        'timeupdate',
+        'error',
+    ] as const;
     readonly volume = input(1);
     readonly startTime = input(0);
     readonly timeUpdate = output<{
@@ -114,6 +126,10 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
 
     private readonly clearPlaybackIssue = () => {
         this.playbackIssue.emit(null);
+    };
+    private readonly scheduleMpegTsVodDurationSync = () => {
+        this.syncMpegTsVodDuration();
+        this.queueDurationSync(() => this.syncMpegTsVodDuration());
     };
 
     /**
@@ -132,7 +148,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
             : { ...this.options(), autoplay: true };
 
         this.player = videoJs(this.target().nativeElement, vjsOptions, () => {
-            console.log(
+            debugVjsPlayer(
                 'Setting VideoJS player initial volume to:',
                 this.volume()
             );
@@ -155,7 +171,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
             const audioTracks = this.player.audioTracks();
             if (audioTracks) {
                 audioTracks.addEventListener('addtrack', () => {
-                    console.log(
+                    debugVjsPlayer(
                         '[AudioTrack] addtrack event fired, total tracks:',
                         this.player.audioTracks().length
                     );
@@ -163,7 +179,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
                     this.setupAudioTrackMenu();
                 });
                 audioTracks.addEventListener('removetrack', () => {
-                    console.log(
+                    debugVjsPlayer(
                         '[AudioTrack] removetrack event fired, total tracks:',
                         this.player.audioTracks().length
                     );
@@ -233,7 +249,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
             }
         }
         if (changes['volume']?.currentValue !== undefined && this.player) {
-            console.log(
+            debugVjsPlayer(
                 'Setting VideoJS player volume to:',
                 changes['volume'].currentValue
             );
@@ -254,7 +270,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
 
     private isMpegTsSource(url?: string): boolean {
         if (!url) return false;
-        const extension = getStreamExtensionFromUrl(url);
+        const extension = getPlaybackMediaExtensionFromUrl(url);
         return (extension === 'ts' || !extension) && mpegts.isSupported();
     }
 
@@ -287,16 +303,23 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
             ?.el();
         if (!videoEl) return;
 
-        console.log('Using mpegts.js for TS stream:', url);
+        debugVjsPlayer('Using mpegts.js for TS stream:', url);
+        const isLive = this.options().isLive !== false;
         this.mpegtsPlayer = mpegts.createPlayer({
             type: 'mpegts',
-            isLive: true,
+            isLive,
             url: url,
         });
         this.mpegtsPlayer.attachMediaElement(videoEl as HTMLVideoElement);
+        if (!isLive) {
+            this.attachMpegTsVodDurationNormalization(
+                videoEl as HTMLVideoElement
+            );
+        }
         this.mpegtsPlayer.on(
             mpegts.Events.ERROR,
             (type: string, details: string, info: unknown): void => {
+                this.syncMpegTsVodDuration();
                 this.playbackIssue.emit(
                     classifyMpegTsPlaybackIssue(
                         {
@@ -322,6 +345,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
                 : null;
         const nativeError = targetVideo?.error ?? null;
 
+        this.syncMpegTsVodDuration();
         this.playbackIssue.emit(
             classifyNativePlaybackIssue(
                 videoJsError ?? nativeError,
@@ -333,6 +357,83 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
         );
     }
 
+    private attachMpegTsVodDurationNormalization(
+        videoEl: HTMLVideoElement
+    ): void {
+        this.detachMpegTsVodDurationNormalization();
+        this.mpegTsVodDurationTarget = videoEl;
+        for (const eventName of this.mpegTsVodDurationEvents) {
+            videoEl.addEventListener(
+                eventName,
+                this.scheduleMpegTsVodDurationSync
+            );
+        }
+        this.syncMpegTsVodDuration();
+    }
+
+    private detachMpegTsVodDurationNormalization(): void {
+        if (!this.mpegTsVodDurationTarget) {
+            return;
+        }
+
+        for (const eventName of this.mpegTsVodDurationEvents) {
+            this.mpegTsVodDurationTarget.removeEventListener(
+                eventName,
+                this.scheduleMpegTsVodDurationSync
+            );
+        }
+        this.mpegTsVodDurationTarget = null;
+    }
+
+    private syncMpegTsVodDuration(): void {
+        if (this.options().isLive !== false || !this.mpegTsVodDurationTarget) {
+            return;
+        }
+
+        const duration = this.getFiniteMpegTsVodDuration(
+            this.mpegTsVodDurationTarget
+        );
+        if (!duration) {
+            return;
+        }
+
+        if (this.player.duration() !== duration) {
+            this.player.duration(duration);
+        }
+    }
+
+    private getFiniteMpegTsVodDuration(videoEl: HTMLVideoElement): number {
+        return (
+            this.getFiniteTimeRangeEnd(videoEl.seekable) ??
+            this.getFiniteTimeRangeEnd(videoEl.buffered) ??
+            0
+        );
+    }
+
+    private getFiniteTimeRangeEnd(ranges: TimeRanges): number | null {
+        for (let index = ranges.length - 1; index >= 0; index--) {
+            try {
+                const end = ranges.end(index);
+                if (Number.isFinite(end) && end > 0) {
+                    return end;
+                }
+            } catch {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    private queueDurationSync(callback: () => void): void {
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(callback);
+            return;
+        }
+
+        void Promise.resolve().then(callback);
+    }
+
     private createSourceMetadata(url: string, mimeType?: string) {
         return createPlaybackSourceMetadata({
             url,
@@ -342,6 +443,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     private destroyMpegTs(): void {
+        this.detachMpegTsVodDurationNormalization();
         if (this.mpegtsPlayer) {
             this.mpegtsPlayer.pause();
             this.mpegtsPlayer.unload();
@@ -356,13 +458,13 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
      */
     private logAudioTracks(): void {
         const audioTracks = this.player.audioTracks();
-        console.log(
+        debugVjsPlayer(
             '[AudioTrack] Audio tracks count:',
             audioTracks?.length ?? 0
         );
         for (let i = 0; i < (audioTracks?.length ?? 0); i++) {
             const t = audioTracks[i];
-            console.log(
+            debugVjsPlayer(
                 `[AudioTrack] Track ${i}: label="${t.label}", language="${t.language}", enabled=${t.enabled}, kind="${t.kind}"`
             );
         }
@@ -377,12 +479,12 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
             tech?.vhs?.playlists?.master?.mediaGroups?.AUDIO;
 
         if (audioMediaGroups) {
-            console.log(
+            debugVjsPlayer(
                 '[AudioTrack] HLS AUDIO media groups:',
                 JSON.stringify(Object.keys(audioMediaGroups))
             );
         } else {
-            console.log(
+            debugVjsPlayer(
                 '[AudioTrack] HLS AUDIO media groups: none found in playlist metadata'
             );
         }
@@ -395,16 +497,16 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
      */
     private setupAudioTrackMenu(): void {
         const audioTracks = this.player.audioTracks();
-        console.log(
+        debugVjsPlayer(
             '[AudioTrack] setupAudioTrackMenu called, tracks:',
             audioTracks?.length ?? 0
         );
         if (!audioTracks || audioTracks.length <= 1) {
-            console.log(
+            debugVjsPlayer(
                 '[AudioTrack] Skipping menu: need >1 tracks, have',
                 audioTracks?.length ?? 0
             );
-            console.log(
+            debugVjsPlayer(
                 '[AudioTrack] If VLC/MPV show more tracks, the HLS manifest likely does not expose alternate audio via EXT-X-MEDIA'
             );
             return;

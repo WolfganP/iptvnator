@@ -13,9 +13,8 @@ import {
 } from '@angular/core';
 import Hls, { type ErrorData, type ManifestParsedData } from 'hls.js';
 import mpegts from 'mpegts.js';
-import { getStreamExtensionFromUrl } from 'm3u-utils';
-import { DataService } from 'services';
-import { Channel } from 'shared-interfaces';
+import { DataService } from '@iptvnator/services';
+import { Channel, createDevLogger } from '@iptvnator/shared/interfaces';
 import {
     InlinePlaybackPlayer,
     PlaybackDiagnostic,
@@ -24,7 +23,10 @@ import {
     classifyNativePlaybackIssue,
     classifyUnsupportedHlsManifestCodecs,
     createPlaybackSourceMetadata,
+    getPlaybackMediaExtensionFromUrl,
 } from '../playback-diagnostics/playback-diagnostics.util';
+
+const debugHtmlPlayer = createDevLogger('HtmlVideoPlayer');
 
 /**
  * This component contains the implementation of HTML5 based video player
@@ -82,11 +84,14 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
             this.onVolumeChange();
         });
 
-        this.videoPlayer.nativeElement.addEventListener('loadedmetadata', () => {
-            if (this.startTime > 0) {
-                this.videoPlayer.nativeElement.currentTime = this.startTime;
+        this.videoPlayer.nativeElement.addEventListener(
+            'loadedmetadata',
+            () => {
+                if (this.startTime > 0) {
+                    this.videoPlayer.nativeElement.currentTime = this.startTime;
+                }
             }
-        });
+        );
 
         this.videoPlayer.nativeElement.addEventListener('timeupdate', () => {
             this.timeUpdate.emit({
@@ -118,7 +123,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
             this.playChannel(changes['channel'].currentValue);
         }
         if (changes['volume']?.currentValue !== undefined) {
-            console.log(
+            debugHtmlPlayer(
                 'Setting HTML5 player volume to:',
                 changes['volume'].currentValue
             );
@@ -143,7 +148,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
         if (channel.url) {
             this.playbackIssue.emit(null);
             const url = channel.url + (channel.epgParams ?? '');
-            const extension = getStreamExtensionFromUrl(channel.url);
+            const extension = getPlaybackMediaExtensionFromUrl(channel.url);
 
             // Set user agent if specified on channel
             if (channel.http?.['user-agent']) {
@@ -154,7 +159,11 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
             }
 
             if ((extension === 'ts' || !extension) && mpegts.isSupported()) {
-                console.log('Using mpegts.js for TS stream:', channel.name, url);
+                debugHtmlPlayer(
+                    'Using mpegts.js for TS stream:',
+                    channel.name,
+                    url
+                );
                 this.mpegtsPlayer = mpegts.createPlayer({
                     type: 'mpegts',
                     isLive: true,
@@ -165,11 +174,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                 );
                 this.mpegtsPlayer.on(
                     mpegts.Events.ERROR,
-                    (
-                        type: string,
-                        details: string,
-                        info: unknown
-                    ): void => {
+                    (type: string, details: string, info: unknown): void => {
                         this.playbackIssue.emit(
                             classifyMpegTsPlaybackIssue(
                                 {
@@ -190,7 +195,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                 Hls &&
                 Hls.isSupported()
             ) {
-                console.log('... switching channel to ', channel.name, url);
+                debugHtmlPlayer('Switching channel to:', channel.name, url);
                 this.hls = new Hls();
                 this.hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
                     this.handleHlsManifestParsed(url, data);
@@ -202,7 +207,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                 this.hls.loadSource(url);
                 this.handlePlayOperation();
             } else {
-                console.log('Using native video player...');
+                debugHtmlPlayer('Using native video player');
                 this.addSourceToVideo(
                     this.videoPlayer.nativeElement,
                     url,
@@ -285,6 +290,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                     details: data.details,
                     fatal: data.fatal,
                     message: data.error?.message,
+                    error: data.error,
                 },
                 this.createSourceMetadata(url, 'application/x-mpegURL')
             )
@@ -311,7 +317,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
      */
     onVolumeChange(): void {
         const currentVolume = this.videoPlayer.nativeElement.volume;
-        console.log('Volume changed to:', currentVolume);
+        debugHtmlPlayer('Volume changed to:', currentVolume);
         localStorage.setItem('volume', currentVolume.toString());
     }
 

@@ -9,6 +9,15 @@ This file provides guidance to coding agents working in this repository.
 - Use the filename pattern `YYYY-MM-DD-short-topic.md` such as `.plans/2026-03-12-channel-filtering.md`.
 - If the intended filename already exists, append a numeric suffix such as `-2`, `-3`, and so on.
 
+## Agent Bootstrap
+
+- In a fresh worktree, run `pnpm install --frozen-lockfile` before relying on Nx project discovery, lint, test, or build commands. Without `node_modules`, `pnpm nx show projects` will fail because the local Nx modules are unavailable.
+- After dependencies are installed, verify workspace discovery with `pnpm nx show projects`.
+- Use scoped path aliases from `tsconfig.base.json` such as `@iptvnator/services`, `@iptvnator/shared/interfaces`, and `@iptvnator/ui/components`. Do not add new imports from legacy bare aliases such as `services`, `shared-interfaces`, `components`, `m3u-state`, or `database`.
+- Every Nx project should keep `scope:*`, `domain:*`, and `type:*` tags in `project.json` so `@nx/enforce-module-boundaries` remains useful for humans and agents.
+- See `docs/architecture/nx-workspace-boundaries.md` for the current Nx tag and alias policy.
+- Repository-specific skills are committed under `.codex/skills/`. If an external agent does not support skills, treat those files as concise ownership docs.
+
 ## Documentation After Changes
 
 - After implementing a meaningful change, agents must assess whether canonical repo docs need updates before considering the task complete.
@@ -61,6 +70,7 @@ IPTVNATOR_TRACE_STARTUP=1 nx serve electron-backend
     - `IPTVNATOR_TRACE_DB=1` traces DB worker requests and request-scoped DB events
     - `IPTVNATOR_TRACE_SQL=1` traces SQLite statements in the main process and DB worker
     - `IPTVNATOR_TRACE_WINDOW=1` traces BrowserWindow lifecycle and unresponsive events
+    - `IPTVNATOR_TRACE_PLAYER=1` traces external-player launch/reuse/polling debug output
     - `IPTVNATOR_TRACE_RENDERER_CONSOLE=1` mirrors renderer console output into the Electron terminal
 
 - GPU/compositor debugging:
@@ -150,7 +160,7 @@ Key files:
 
 ## General Guidelines for working with Nx
 
-- For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
+- For navigating/exploring the workspace, invoke the `nx-workspace` skill first when it is available - it has patterns for querying projects, targets, and dependencies. If it is unavailable, use `pnpm nx show projects`, `pnpm nx graph`, and project `project.json` files directly.
 - When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
 - Prefix nx commands with the workspace's package manager (e.g., `pnpm nx build`, `npm exec nx test`) - avoids using globally installed CLI
 - You have access to the Nx MCP server and its tools, use them to help the user

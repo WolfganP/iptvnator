@@ -246,6 +246,8 @@
         "NEW_VERSION_AVAILABLE": "有新版本可用 ",
         "LATEST_VERSION": "您使用的是最新版本",
         "STREAM_FORMAT": "流格式",
+        "OPEN_EXTERNAL_PLAYER_ON_DOUBLE_CLICK": "双击启动 MPV/VLC",
+        "OPEN_EXTERNAL_PLAYER_ON_DOUBLE_CLICK_DESCRIPTION": "在 MPV 或 VLC 开始播放前，要求双击频道行。",
         "LANGUAGE": "语言",
         "SETTINGS_SAVED": "配置已成功保存",
         "THEME": "主题",
@@ -326,6 +328,10 @@
         "MPV_PLAYER_ARGUMENTS": "mpv arguments",
         "MPV_REUSE_INSTANCE_LABEL": "复用 MPV 实例",
         "MPV_REUSE_INSTANCE_DESCRIPTION": "启用后，将复用同一个 MPV 窗口播放不同的视频流。禁用后，每个视频流都会在新的 MPV 窗口中打开。",
+        "RECORDING_FOLDER_LABEL": "录制文件夹",
+        "RECORDING_FOLDER_DESCRIPTION": "用于保存 Embedded MPV 直播录制的文件夹。留空则使用系统下载文件夹。",
+        "RECORDING_FOLDER": "录制文件夹",
+        "RECORDING_FOLDER_SELECT": "选择录制文件夹",
         "VLC_PLAYER_PATH_LABEL": "VLC路径",
         "VLC_PLAYER_PATH_DESCRIPTION": "设置 VLC 路径。在 macOS 上可以使用 VLC 应用包，例如 /Applications/VLC.app，也可以使用可执行文件路径。",
         "VLC_PLAYER_PATH": "VLC播放器路径",
@@ -360,35 +366,51 @@
         "LIGHT_THEME": "明亮模式",
         "SYSTEM_THEME": "跟随系统"
     },
-        "PLAYBACK_DIAGNOSTICS": {
-            "UNSUPPORTED_CONTAINER": {
-                "TITLE": "This stream container is likely unsupported by the browser player",
-                "DESCRIPTION": "Chromium/Electron may not decode this container inline. Try MPV or VLC for broader codec support."
-            },
-            "UNSUPPORTED_CODEC": {
-                "TITLE": "This stream codec is likely unsupported by the browser player",
-                "DESCRIPTION": "The stream advertises codecs that the built-in Chromium player may not decode. MPV or VLC can often play it."
-            },
-            "MEDIA_DECODE_ERROR": {
-                "TITLE": "The browser player could not decode this stream",
-                "DESCRIPTION": "Playback started but the media pipeline failed while decoding. An external player may handle this stream better."
-            },
-            "NETWORK_ERROR": {
-                "TITLE": "The stream could not be loaded",
-                "DESCRIPTION": "The player reported a network or provider loading error. Check the stream URL, headers, or provider availability."
-            },
-            "DRM_OR_ENCRYPTION": {
-                "TITLE": "This stream may be encrypted or DRM-protected",
-                "DESCRIPTION": "The browser player cannot continue with the reported encryption/key error. External playback may still fail if provider DRM is required."
-            },
-            "UNKNOWN_PLAYBACK_ERROR": {
-                "TITLE": "The browser player reported a playback error",
-                "DESCRIPTION": "The stream failed in the built-in player, but the error did not identify a specific codec, container, or network cause."
-            },
-            "ACTION_OPEN_MPV": "Open in MPV",
-            "ACTION_OPEN_VLC": "Open in VLC",
-            "ACTION_COPY_URL": "Copy URL"
+    "PLAYBACK_DIAGNOSTICS": {
+        "UNSUPPORTED_CONTAINER": {
+            "TITLE": "This stream container is likely unsupported by the browser player",
+            "DESCRIPTION": "Chromium/Electron may not decode this container inline. Try MPV or VLC for broader codec support."
         },
+        "UNSUPPORTED_CODEC": {
+            "TITLE": "This stream codec is likely unsupported by the browser player",
+            "DESCRIPTION": "The stream advertises codecs that the built-in Chromium player may not decode. MPV or VLC can often play it."
+        },
+        "MEDIA_DECODE_ERROR": {
+            "TITLE": "The browser player could not decode this stream",
+            "DESCRIPTION": "Playback started but the media pipeline failed while decoding. An external player may handle this stream better."
+        },
+        "NETWORK_ERROR": {
+            "TITLE": "The stream could not be loaded",
+            "DESCRIPTION": "The player reported a network or provider loading error. Check the stream URL, headers, or provider availability."
+        },
+        "BROWSER_ACCESS_ERROR": {
+            "TITLE": "The browser player could not access this stream",
+            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits."
+        },
+        "DRM_OR_ENCRYPTION": {
+            "TITLE": "This stream may be encrypted or DRM-protected",
+            "DESCRIPTION": "The browser player cannot continue with the reported encryption/key error. External playback may still fail if provider DRM is required."
+        },
+        "UNKNOWN_PLAYBACK_ERROR": {
+            "TITLE": "The browser player reported a playback error",
+            "DESCRIPTION": "The stream failed in the built-in player, but the error did not identify a specific codec, container, or network cause."
+        },
+        "ACTION_OPEN_MPV": "Open in MPV",
+        "ACTION_OPEN_VLC": "Open in VLC",
+        "ACTION_COPY_URL": "Copy URL",
+        "DETAILS_SUMMARY": "Technical details",
+        "CODEC_HINT": "Detected {{codecs}}. Chromium/Electron browser players often have limited support for these codecs.",
+        "DETAIL_CODE": "Diagnostic code",
+        "DETAIL_PLAYER": "Player",
+        "DETAIL_SOURCE": "Source",
+        "DETAIL_CONTAINER": "Container",
+        "DETAIL_MIME_TYPE": "MIME type",
+        "DETAIL_VIDEO_CODECS": "Video codecs",
+        "DETAIL_AUDIO_CODECS": "Audio codecs",
+        "DETAIL_NATIVE_ERROR_CODE": "Native error code",
+        "DETAIL_NATIVE_ERROR_MESSAGE": "Native error message",
+        "DETAIL_ERROR_DETAILS": "Error details"
+    },
     "LAYOUT": {
         "HIDE_CHANNELS_LIST": "隐藏频道列表",
         "SHOW_CHANNELS_LIST": "显示频道列表",
@@ -792,6 +814,8 @@
         "SORT_NAME_ASC": "名称 A-Z",
         "SORT_NAME_DESC": "名称 Z-A",
         "SORT_LABEL": "排序：",
+        "SORT_SERVER": "服务器排序",
+        "CATEGORY_SORT_ARIA": "排序分类",
         "DASHBOARD": {
             "CONTINUE_WATCHING": "继续观看",
             "UNTITLED_SOURCE": "未命名源",
