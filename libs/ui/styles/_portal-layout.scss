@@ -1,6 +1,5 @@
 // ─── Shared mixin for live-stream portal layouts ──────────────────────────────
-// Used by: xtream live-stream-layout, stalker live-stream-layout,
-//           portal-collection-live-shell
+// Used by: xtream live-stream-layout and stalker live-stream-layout.
 //
 // Include this mixin in a component's SCSS to get the shared flex host+sidebar
 // skeleton, then add only the component-specific rules underneath.
@@ -73,10 +72,10 @@
         position: absolute;
         top: 6px;
         left: 6px;
-        // Player internals, including the radio audio stage, may use z-index
-        // 2 inside the content area. Keep the restore affordance above them
-        // for both paint order and hit testing.
-        z-index: 5;
+        // Player internals, including diagnostic overlays, may use z-index 5
+        // inside the content area. Keep the restore affordance above them for
+        // both paint order and hit testing.
+        z-index: 6;
         background: rgba(128, 128, 128, 0.18);
         color: var(--mat-sys-on-surface, rgba(255, 255, 255, 0.75));
         box-shadow: none;
