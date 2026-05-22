@@ -72,9 +72,17 @@ import {
     SidebarComponent,
     WebPlayerViewComponent,
 } from '@iptvnator/ui/playback';
-import { LiveEpgPanelComponent, LiveEpgPanelSummary } from '@iptvnator/ui/shared-portals';
+import {
+    LiveEpgPanelComponent,
+    LiveEpgPanelSummary,
+} from '@iptvnator/ui/shared-portals';
 import { ChannelListLoadingStateComponent } from '@iptvnator/ui/components';
-import { DataService, PlaylistsService, SettingsStore } from '@iptvnator/services';
+import {
+    DataService,
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import {
     Channel,
     EpgProgram,
@@ -126,6 +134,7 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
     private readonly playlistsService = inject(PlaylistsService);
     private readonly playlistContext = inject(PlaylistContextFacade);
     private readonly router = inject(Router);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly settingsStore = inject(SettingsStore);
     private readonly storage = inject(StorageMap);
     private readonly store = inject(Store);
@@ -243,7 +252,8 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
         showCaptions: false,
     };
 
-    readonly isDesktop = !!window['electron'];
+    readonly isDesktop = this.runtime.isElectron;
+    readonly supportsEpg = this.runtime.supportsEpg;
     readonly isWorkspaceLayout = isWorkspaceLayoutRoute(this.activatedRoute);
 
     /** EPG overlay reference */
@@ -373,8 +383,9 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
         this.registerHeaderShortcut();
 
         // Setup remote control channel change listener (Electron only)
-        if (this.isDesktop && window.electron?.onChannelChange) {
-            const unsubscribe = window.electron.onChannelChange(
+        const remoteControl = this.remoteControlBridge;
+        if (remoteControl?.onChannelChange) {
+            const unsubscribe = remoteControl.onChannelChange(
                 (data: { direction: 'up' | 'down' }) => {
                     this.handleRemoteChannelChange(data.direction);
                 }
@@ -383,8 +394,8 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
                 this.unsubscribeRemoteChannelChange = unsubscribe;
             }
         }
-        if (this.isDesktop && window.electron?.onRemoteControlCommand) {
-            const unsubscribe = window.electron.onRemoteControlCommand(
+        if (remoteControl?.onRemoteControlCommand) {
+            const unsubscribe = remoteControl.onRemoteControlCommand(
                 (command) => {
                     this.handleRemoteControlCommand(command);
                 }
@@ -399,7 +410,8 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
             this.store.select(selectActive),
             this.store.select(selectCurrentEpgProgram).pipe(startWith(null)),
         ]).subscribe(([channels, activeChannel, epgProgram]) => {
-            if (!window.electron?.updateRemoteControlStatus || !activeChannel) {
+            const remoteControl = this.remoteControlBridge;
+            if (!remoteControl?.updateRemoteControlStatus || !activeChannel) {
                 return;
             }
 
@@ -411,7 +423,7 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
                 (channel) => channel.url === activeChannel.url
             );
 
-            window.electron.updateRemoteControlStatus({
+            remoteControl.updateRemoteControlStatus({
                 portal: 'm3u',
                 isLiveView: true,
                 channelName: activeChannel.name ?? activeChannel.tvg?.name,
@@ -635,6 +647,10 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
      * Opens the overlay with multi EPG view
      */
     openMultiEpgView(): void {
+        if (!this.supportsEpg) {
+            return;
+        }
+
         const positionStrategy = this.overlay
             .position()
             .global()
@@ -791,8 +807,9 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
         }
         localStorage.setItem('volume', String(clamped));
 
-        if (window.electron?.updateRemoteControlStatus) {
-            window.electron.updateRemoteControlStatus({
+        const remoteControl = this.remoteControlBridge;
+        if (remoteControl?.updateRemoteControlStatus) {
+            remoteControl.updateRemoteControlStatus({
                 portal: 'm3u',
                 isLiveView: true,
                 supportsVolume: true,
@@ -800,6 +817,10 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
                 muted: this.volume === 0,
             });
         }
+    }
+
+    private get remoteControlBridge(): Window['electron'] | undefined {
+        return this.runtime.supportsRemoteControl ? window.electron : undefined;
     }
 
     shouldShowInlinePlayer(channel: Channel | null | undefined): boolean {
@@ -862,7 +883,7 @@ export class VideoPlayerComponent implements OnInit, OnDestroy {
     }
 
     private registerHeaderShortcut(): void {
-        if (!this.isWorkspaceLayout) {
+        if (!this.isWorkspaceLayout || !this.supportsEpg) {
             return;
         }
 

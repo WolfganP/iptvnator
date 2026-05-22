@@ -9,7 +9,11 @@ import { WORKSPACE_SHELL_ACTIONS } from '@iptvnator/workspace/shell/util';
 import { EpgProgressPanelComponent } from '@iptvnator/ui/epg/progress-panel';
 import { PlaylistActions, selectAllPlaylistsMeta } from '@iptvnator/m3u-state';
 import { filter, take } from 'rxjs';
-import { DataService, SettingsStore } from '@iptvnator/services';
+import {
+    DataService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import {
     AUTO_UPDATE_PLAYLISTS,
     Language,
@@ -30,9 +34,7 @@ const debugAppComponent = createDevLogger('AppComponent');
 })
 export class AppComponent implements OnInit {
     @HostBinding('class.macos-platform') get isMacOS() {
-        return (
-            window.electron && navigator.platform.toLowerCase().includes('mac')
-        );
+        return this.runtime.isMacOS;
     }
     private actions$ = inject(Actions);
     private dataService = inject(DataService);
@@ -43,20 +45,23 @@ export class AppComponent implements OnInit {
     private translate = inject(TranslateService);
     private settingsService = inject(SettingsService);
     private settingsStore = inject(SettingsStore);
+    private runtime = inject(RuntimeCapabilitiesService);
     private readonly workspaceShellActions = inject(WORKSPACE_SHELL_ACTIONS);
 
     /** Default language as fallback */
     private readonly DEFAULT_LANG = Language.ENGLISH;
 
     constructor() {
+        const electronProcess = this.dataService.remote?.process;
         if (
-            ((this.dataService.isElectron &&
-                this.dataService?.remote?.process.platform === 'linux') ||
-                this.dataService?.remote?.process.platform === 'win32') &&
-            this.dataService.remote.process.argv.length > 2
+            this.dataService.isElectron &&
+            electronProcess &&
+            (electronProcess.platform === 'linux' ||
+                electronProcess.platform === 'win32') &&
+            electronProcess.argv.length > 2
         ) {
-            const filePath = this.dataService.remote.process.argv.find(
-                (filepath) =>
+            const filePath = electronProcess.argv.find(
+                (filepath: string) =>
                     filepath.endsWith('.m3u') || filepath.endsWith('.m3u8')
             );
             if (filePath) {
@@ -73,7 +78,7 @@ export class AppComponent implements OnInit {
             document.documentElement.dataset.coverSize = size;
         });
 
-        if (window.electron) {
+        if (this.runtime.isElectron) {
             document.addEventListener('keydown', (event) => {
                 if (event.ctrlKey || event.metaKey) {
                     if (event.key === 'f') {
@@ -102,7 +107,7 @@ export class AppComponent implements OnInit {
      */
     initSettings(): void {
         this.settingsService
-            .getValueFromLocalStorage(STORE_KEY.Settings)
+            .getValueFromLocalStorage<Settings>(STORE_KEY.Settings)
             .subscribe((settings: Settings) => {
                 if (settings && Object.keys(settings).length > 0) {
                     // No need to send settings to Electron on init
@@ -126,7 +131,7 @@ export class AppComponent implements OnInit {
 
                     // Fetch EPG if URLs are configured (only fetch stale data)
                     if (
-                        window.electron &&
+                        this.runtime.supportsEpg &&
                         settings.epgUrl?.length > 0 &&
                         settings.epgUrl?.some((u) => u !== '')
                     ) {

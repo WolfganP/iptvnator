@@ -20,7 +20,6 @@ import { Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { TranslateService } from '@ngx-translate/core';
 import { PlaylistContextFacade } from '@iptvnator/playlist/shared/util';
-import type { WorkspacePlaylistType } from '@iptvnator/workspace/shell/util';
 import {
     PlaylistActions,
     selectActiveTypeFilters,
@@ -35,7 +34,9 @@ import {
     DbOperationEvent,
     isDbAbortError,
     PlaybackPositionService,
+    PlaylistDeleteActionService,
     PlaylistRefreshService,
+    RuntimeCapabilitiesService,
     SortBy,
     SortService,
     XtreamPendingRestoreService,
@@ -47,6 +48,7 @@ import {
 } from '@iptvnator/shared/interfaces';
 
 import { EmptyStateComponent } from './empty-state/empty-state.component';
+import type { PlaylistType } from '../add-playlist-menu/playlist-type';
 import { PlaylistInfoComponent } from './playlist-info/playlist-info.component';
 import { PlaylistItemComponent } from './playlist-item/playlist-item.component';
 
@@ -82,8 +84,10 @@ export class RecentPlaylistsComponent {
     private readonly snackBar = inject(MatSnackBar);
     private readonly sortService = inject(SortService);
     private readonly store = inject(Store);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly translate = inject(TranslateService);
     private readonly playlistContext = inject(PlaylistContextFacade);
+    private readonly playlistDeleteAction = inject(PlaylistDeleteActionService);
     private readonly pendingRestoreService = inject(
         XtreamPendingRestoreService
     );
@@ -91,9 +95,19 @@ export class RecentPlaylistsComponent {
     readonly sidebarMode = input(false);
     readonly searchQueryInput = input<string>('');
     readonly playlistClicked = output<string>();
-    readonly addPlaylistClicked = output<WorkspacePlaylistType | undefined>();
+    readonly addPlaylistClicked = output<PlaylistType | undefined>();
 
-    readonly isElectron = !!window.electron;
+    get isElectron(): boolean {
+        return this.runtime.isElectron;
+    }
+
+    get supportsPlaylistRefresh(): boolean {
+        return this.runtime.supportsPlaylistRefresh;
+    }
+
+    get supportsXtreamSqliteDataSource(): boolean {
+        return this.runtime.supportsXtreamSqliteDataSource;
+    }
 
     readonly allPlaylistsLoaded = this.store.selectSignal(
         selectPlaylistsLoadingFlag
@@ -203,7 +217,7 @@ export class RecentPlaylistsComponent {
         );
     }
 
-    onAddPlaylist(type?: WorkspacePlaylistType) {
+    onAddPlaylist(type?: PlaylistType) {
         this.addPlaylistClicked.emit(type);
     }
 
@@ -248,20 +262,13 @@ export class RecentPlaylistsComponent {
         }
 
         this.setPendingDeletion(item._id, true);
-        const operationId = item.serverUrl
-            ? this.databaseService.createOperationId('playlist-delete')
-            : undefined;
-
         try {
-            const deleted = await this.databaseService.deletePlaylist(
-                item._id,
-                operationId
-                    ? {
-                          operationId,
-                          onEvent: (event) =>
-                              this.updateBusyOperation(item._id, event),
-                      }
-                    : undefined
+            const deleted = await this.playlistDeleteAction.deletePlaylist(
+                item,
+                {
+                    onEvent: (event) =>
+                        this.updateBusyOperation(item._id, event),
+                }
             );
             if (deleted) {
                 this.store.dispatch(
@@ -292,17 +299,20 @@ export class RecentPlaylistsComponent {
             return;
         }
 
-        if (item.serverUrl) {
+        if (item.serverUrl && this.supportsXtreamSqliteDataSource) {
             // For Xtream playlists, delete and re-import
             this.refreshXtreamPlaylist(item);
-        } else if (window.electron && (item.url || item.filePath)) {
+        } else if (
+            this.supportsPlaylistRefresh &&
+            (item.url || item.filePath)
+        ) {
             void this.refreshM3uPlaylist(item);
-        } else {
-            // For M3U playlists, use existing refresh logic
+        } else if (item.url) {
+            // Browser/PWA URL refresh uses the PWA data service path.
             this.dataService.sendIpcEvent(PLAYLIST_UPDATE, {
                 id: item._id,
                 title: item.title,
-                ...(item.url ? { url: item.url } : { filePath: item.filePath }),
+                url: item.url,
             });
         }
     }
@@ -460,7 +470,7 @@ export class RecentPlaylistsComponent {
                 this.translate.instant(
                     'HOME.PLAYLISTS.PLAYLIST_UPDATE_SUCCESS'
                 ),
-                null,
+                undefined,
                 { duration: 2000 }
             );
         } catch (error) {

@@ -5,16 +5,18 @@ import { TranslateService } from '@ngx-translate/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { DialogService } from '@iptvnator/ui/components';
 import {
+    DataService,
     DatabaseService,
     type DbOperationEvent,
     isDbAbortError,
     PlaybackPositionService,
     PlaylistRefreshService,
+    RuntimeCapabilitiesService,
     XtreamPendingRestoreService,
 } from '@iptvnator/services';
 import { ChannelActions, PlaylistActions } from '@iptvnator/m3u-state';
-import { PlaylistMeta } from '@iptvnator/shared/interfaces';
-import { PlaylistContextFacade } from './playlist-context.facade';
+import { PLAYLIST_UPDATE, PlaylistMeta } from '@iptvnator/shared/interfaces';
+import { PlaylistContextFacade } from '@iptvnator/playlist/shared/util';
 
 export interface XtreamRefreshPreparationState {
     playlistId: string;
@@ -32,8 +34,10 @@ export class PlaylistRefreshActionService {
     private readonly snackBar = inject(MatSnackBar);
     private readonly dialogService = inject(DialogService);
     private readonly databaseService = inject(DatabaseService);
+    private readonly dataService = inject(DataService);
     private readonly playbackPositionService = inject(PlaybackPositionService);
     private readonly playlistRefreshService = inject(PlaylistRefreshService);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly playlistContext = inject(PlaylistContextFacade);
     private readonly pendingRestoreService = inject(
         XtreamPendingRestoreService
@@ -46,11 +50,19 @@ export class PlaylistRefreshActionService {
     readonly refreshPreparation = this.refreshPreparationState.asReadonly();
 
     canRefresh(playlist: PlaylistMeta | null): boolean {
-        if (!playlist || !window.electron) {
+        if (!playlist) {
             return false;
         }
 
-        return Boolean(playlist.serverUrl || playlist.url || playlist.filePath);
+        if (playlist.serverUrl) {
+            return this.runtime.supportsXtreamSqliteDataSource;
+        }
+
+        if (playlist.url) {
+            return true;
+        }
+
+        return this.runtime.supportsPlaylistRefresh && Boolean(playlist.filePath);
     }
 
     refresh(playlist: PlaylistMeta): void {
@@ -58,10 +70,19 @@ export class PlaylistRefreshActionService {
             return;
         }
 
-        if (playlist.serverUrl) {
+        if (playlist.serverUrl && this.runtime.supportsXtreamSqliteDataSource) {
             this.refreshXtream(playlist);
-        } else if (playlist.url || playlist.filePath) {
+        } else if (
+            this.runtime.supportsPlaylistRefresh &&
+            (playlist.url || playlist.filePath)
+        ) {
             void this.refreshM3u(playlist);
+        } else if (playlist.url) {
+            this.dataService.sendIpcEvent(PLAYLIST_UPDATE, {
+                id: playlist._id,
+                title: playlist.title,
+                url: playlist.url,
+            });
         }
     }
 

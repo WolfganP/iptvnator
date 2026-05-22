@@ -85,9 +85,15 @@ export const SETTINGS_EMBEDDED_PLAYER_OPTIONS: SettingsPlayerOption[] = [
     },
 ];
 
-export function buildSettingsSectionNavItems(
-    isDesktop: boolean
-): SettingsSection[] {
+export interface SettingsSectionVisibility {
+    supportsEpg: boolean;
+    supportsRemoteControl: boolean;
+}
+
+export function buildSettingsSectionNavItems({
+    supportsEpg,
+    supportsRemoteControl,
+}: SettingsSectionVisibility): SettingsSection[] {
     return [
         {
             id: 'general',
@@ -105,13 +111,18 @@ export function buildSettingsSectionNavItems(
             id: 'epg',
             label: 'SETTINGS.NAV_EPG',
             icon: 'calendar_month',
-            visible: isDesktop,
+            visible: supportsEpg,
         },
         {
-            id: '@iptvnator/ui/remote-control',
+            // Must match the section's HTML id (`remote-control`) so the
+            // settings-section-scroll directive can resolve the anchor.
+            // Was previously '@iptvnator/ui/remote-control' (the NX lib
+            // name), which meant clicking the nav item silently no-op'd
+            // because document.getElementById of that string returned null.
+            id: 'remote-control',
             label: 'SETTINGS.NAV_REMOTE',
             icon: 'smartphone',
-            visible: isDesktop,
+            visible: supportsRemoteControl,
         },
         {
             id: 'backup',

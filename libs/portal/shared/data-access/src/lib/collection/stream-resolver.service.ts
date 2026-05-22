@@ -1,6 +1,10 @@
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { DataService, PlaylistsService } from '@iptvnator/services';
+import {
+    DataService,
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+} from '@iptvnator/services';
 import {
     Channel,
     EpgItem,
@@ -59,6 +63,7 @@ export class StreamResolverService {
     private readonly xtreamApi = inject(XtreamApiService);
     private readonly xtreamUrl = inject(XtreamUrlService);
     private readonly dataService = inject(DataService);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly stalkerSession = inject(StalkerSessionService);
     private readonly m3uEpgTimeoutMs = 3000;
     private readonly portalEpgTimeoutMs = 3000;
@@ -66,6 +71,10 @@ export class StreamResolverService {
     private readonly xtreamEpgFailureTimestamps = new Map<string, number>();
     private readonly xtreamEpgCacheTtlMs = 60 * 1000;
     private readonly xtreamEpgFailureCooldownMs = 60 * 1000;
+
+    private get supportsEpg(): boolean {
+        return this.runtime.supportsEpg;
+    }
 
     private async getElectronPlaylist(
         playlistId: string
@@ -137,6 +146,10 @@ export class StreamResolverService {
         items: UnifiedCollectionItem[]
     ): Promise<Map<string, EpgProgram | null>> {
         const epgMap = new Map<string, EpgProgram | null>();
+        if (!this.supportsEpg) {
+            return epgMap;
+        }
+
         const now = Date.now();
         const xtreamByPlaylist = new Map<string, UnifiedCollectionItem[]>();
         const stalkerByPlaylist = new Map<string, UnifiedCollectionItem[]>();
@@ -199,6 +212,14 @@ export class StreamResolverService {
         item: UnifiedCollectionItem
     ): Promise<ResolvedLiveCollectionDetail> {
         const playback = await this.resolveXtream(item);
+        if (!this.supportsEpg) {
+            return {
+                playback,
+                epgMode: 'portal',
+                epgItems: [],
+            };
+        }
+
         const epgItems = await this.withFallbackTimeout(
             this.loadXtreamEpgItems(item),
             this.portalEpgTimeoutMs,
@@ -221,6 +242,14 @@ export class StreamResolverService {
                 playback,
                 epgMode: 'portal',
                 channel: this.buildStalkerRadioChannel(item, playback),
+                epgItems: [],
+            };
+        }
+
+        if (!this.supportsEpg) {
+            return {
+                playback,
+                epgMode: 'portal',
                 epgItems: [],
             };
         }
@@ -459,11 +488,12 @@ export class StreamResolverService {
         const channel =
             this.findM3uChannel(playlist?.playlist?.items ?? [], item) ??
             this.buildFallbackM3uChannel(item);
-        const epgPrograms = includePrograms
-            ? await this.fetchM3uPrograms(
-                  this.getM3uEpgLookupKey(channel, item)
-              )
-            : [];
+        const epgPrograms =
+            includePrograms && this.supportsEpg
+                ? await this.fetchM3uPrograms(
+                      this.getM3uEpgLookupKey(channel, item)
+                  )
+                : [];
 
         return {
             playback: this.buildM3uPlayback(channel, playlist),
@@ -632,6 +662,10 @@ export class StreamResolverService {
         streamId: number,
         limit: number
     ): Promise<EpgItem[]> {
+        if (!this.supportsEpg) {
+            return [];
+        }
+
         const cacheKey = this.getXtreamEpgCacheKey(playlistId, streamId, limit);
         const cached = this.getCachedXtreamEpgItems(cacheKey);
         if (cached !== null) {
@@ -712,6 +746,10 @@ export class StreamResolverService {
         channelId: string,
         size: number
     ): Promise<EpgItem[]> {
+        if (!this.supportsEpg) {
+            return [];
+        }
+
         const params = {
             action: StalkerPortalActions.GetShortEpg,
             type: 'itv',

@@ -12,11 +12,11 @@ import { NavigationEnd, Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { TranslateService } from '@ngx-translate/core';
 import { filter, firstValueFrom, startWith } from 'rxjs';
-import { PlaylistInfoComponent } from '@iptvnator/playlist/shared/ui';
 import {
-    PlaylistContextFacade,
+    PlaylistInfoComponent,
     PlaylistRefreshActionService,
-} from '@iptvnator/playlist/shared/util';
+} from '@iptvnator/playlist/shared/ui';
+import { PlaylistContextFacade } from '@iptvnator/playlist/shared/util';
 import {
     buildPortalRailLinks,
     PORTAL_EXTERNAL_PLAYBACK,
@@ -33,7 +33,12 @@ import {
     WorkspaceSearchCapability,
     WorkspaceStartupPreferencesService,
 } from '@iptvnator/workspace/shell/util';
-import { DownloadsService, PlaylistsService, SettingsStore } from '@iptvnator/services';
+import {
+    DownloadsService,
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import { PlaylistActions, selectAllPlaylistsMeta } from '@iptvnator/m3u-state';
 import { PlaylistMeta } from '@iptvnator/shared/interfaces';
 import {
@@ -92,9 +97,10 @@ export class WorkspaceShellFacade {
     private readonly playlistRefreshAction = inject(
         PlaylistRefreshActionService
     );
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly downloadsService = inject(DownloadsService);
     readonly hasActiveDownloads = computed(
-        () => this.isElectron && this.downloadsService.activeCount() > 0
+        () => this.supportsDownloads && this.downloadsService.activeCount() > 0
     );
     private readonly languageTick = toSignal(
         this.translate.onLangChange.pipe(startWith(null)),
@@ -133,8 +139,18 @@ export class WorkspaceShellFacade {
 
     readonly searchQuery = signal('');
     readonly appliedSearchQuery = signal('');
-    readonly isElectron = !!window.electron;
-    readonly isMacOS = window.electron?.platform === 'darwin';
+    get isElectron(): boolean {
+        return this.runtime.isElectron;
+    }
+
+    get isMacOS(): boolean {
+        return this.runtime.isMacOS;
+    }
+
+    get supportsDownloads(): boolean {
+        return this.runtime.supportsDownloads;
+    }
+
     readonly currentUrl = signal(this.router.url);
     readonly currentRoute = computed(() =>
         parseWorkspaceShellRoute(this.currentUrl())
@@ -426,7 +442,7 @@ export class WorkspaceShellFacade {
             buildPortalRailLinks({
                 provider: context.provider,
                 playlistId: context.playlistId,
-                isElectron: this.isElectron,
+                supportsDownloads: this.supportsDownloads,
                 workspace: true,
             }).primary,
             context.provider,
@@ -445,7 +461,7 @@ export class WorkspaceShellFacade {
             buildPortalRailLinks({
                 provider: context.provider,
                 playlistId: context.playlistId,
-                isElectron: this.isElectron,
+                supportsDownloads: this.supportsDownloads,
                 workspace: true,
             }).secondary.filter((link) => link.section !== 'downloads'),
             context.provider,
@@ -790,7 +806,7 @@ export class WorkspaceShellFacade {
                 (playlist) => !!playlist.serverUrl
             ),
             canRefreshPlaylist: this.canRefreshPlaylist(),
-            isElectron: this.isElectron,
+            supportsDownloads: this.supportsDownloads,
             showDashboard: this.showDashboard(),
             translate: (key, params) => this.translateText(key, params),
             router: this.router,

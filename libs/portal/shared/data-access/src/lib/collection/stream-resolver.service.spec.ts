@@ -5,7 +5,11 @@ import {
     XtreamUrlService,
 } from '@iptvnator/portal/xtream/data-access';
 import { StalkerSessionService } from '@iptvnator/portal/stalker/data-access';
-import { DataService, PlaylistsService } from '@iptvnator/services';
+import {
+    DataService,
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+} from '@iptvnator/services';
 import { Playlist } from '@iptvnator/shared/interfaces';
 import { UnifiedCollectionItem } from '@iptvnator/portal/shared/util';
 import {
@@ -50,6 +54,14 @@ describe('StreamResolverService', () => {
                 { provide: XtreamApiService, useValue: xtreamApi },
                 { provide: XtreamUrlService, useValue: xtreamUrl },
                 { provide: DataService, useValue: dataService },
+                {
+                    provide: RuntimeCapabilitiesService,
+                    useValue: {
+                        get supportsEpg() {
+                            return Boolean(window.electron);
+                        },
+                    },
+                },
                 { provide: StalkerSessionService, useValue: stalkerSession },
             ],
         });
@@ -263,6 +275,39 @@ describe('StreamResolverService', () => {
                 suppressErrorLog: true,
             }
         );
+    });
+
+    it('skips portal EPG lookups in browser/PWA mode', async () => {
+        window.electron = undefined as unknown as typeof window.electron;
+        playlistsService.getPlaylistById.mockReturnValue(
+            of({
+                _id: 'xtream-1',
+                serverUrl: 'https://xtream.example.com',
+                username: 'user',
+                password: 'pass',
+            } satisfies Partial<Playlist>)
+        );
+        xtreamUrl.constructLiveUrl.mockReturnValue(
+            'https://xtream.example.com/live/1'
+        );
+        const item = {
+            uid: 'xtream::xtream-1::1',
+            name: 'Xtream Live',
+            contentType: 'live',
+            sourceType: 'xtream',
+            playlistId: 'xtream-1',
+            playlistName: 'Xtream',
+            xtreamId: 1,
+            logo: 'xtream.png',
+        } satisfies UnifiedCollectionItem;
+
+        const detail = await service.resolveLiveDetail(item);
+        const epgMap = await service.loadEpgForItems([item]);
+
+        expect(detail.epgItems).toEqual([]);
+        expect(epgMap.size).toBe(0);
+        expect(xtreamApi.getShortEpg).not.toHaveBeenCalled();
+        expect(dataService.sendIpcEvent).not.toHaveBeenCalled();
     });
 
     it('reuses cached empty Xtream preview EPG results instead of refetching immediately', async () => {

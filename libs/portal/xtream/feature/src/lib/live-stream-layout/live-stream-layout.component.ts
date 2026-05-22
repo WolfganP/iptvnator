@@ -63,7 +63,7 @@ import {
 } from '@iptvnator/shared/interfaces';
 import { PortalChannelsListComponent } from '../portal-channels-list/portal-channels-list.component';
 import { ActivatedRoute } from '@angular/router';
-import { SettingsStore } from '@iptvnator/services';
+import { RuntimeCapabilitiesService, SettingsStore } from '@iptvnator/services';
 
 const LIVE_CHANNEL_SORT_STORAGE_KEY = 'xtream-live-channel-sort-mode';
 
@@ -104,6 +104,7 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
     private readonly favoritesService = inject(FavoritesService);
     private readonly xtreamStore = inject(XtreamStore);
     private readonly xtreamUrlService = inject(XtreamUrlService);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly settingsStore = inject(SettingsStore);
     private readonly portalPlayer = inject(PORTAL_PLAYER);
     private readonly liveSidebarStateService = inject(
@@ -119,7 +120,8 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
     readonly isLoadingEpg = this.xtreamStore.isLoadingEpg;
     readonly selectedCategoryId = this.xtreamStore.selectedCategoryId;
     readonly liveChannelSortMode = signal<PortalChannelSortMode>('server');
-    readonly isElectron = Boolean(window.electron);
+    readonly isElectron = this.runtime.isElectron;
+    readonly supportsEpg = this.runtime.supportsEpg;
     readonly isWorkspaceLayout = isWorkspaceLayoutRoute(this.route);
     private readonly routeSearchTerm = queryParamSignal(
         this.route,
@@ -265,7 +267,8 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
         });
 
         effect(() => {
-            if (!window.electron?.updateRemoteControlStatus) {
+            const remoteControl = this.remoteControlBridge;
+            if (!remoteControl?.updateRemoteControlStatus) {
                 return;
             }
 
@@ -275,7 +278,7 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
             const currentProgram = this.currentEpgItem();
 
             if (selectedContentType !== 'live' || !selectedItem?.xtream_id) {
-                window.electron.updateRemoteControlStatus({
+                remoteControl.updateRemoteControlStatus({
                     portal: 'xtream',
                     isLiveView: false,
                     supportsVolume: false,
@@ -288,7 +291,7 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
                     Number(item.xtream_id) === Number(selectedItem.xtream_id)
             );
 
-            window.electron.updateRemoteControlStatus({
+            remoteControl.updateRemoteControlStatus({
                 portal: 'xtream',
                 isLiveView: true,
                 channelName: selectedItem.title ?? selectedItem.name,
@@ -302,8 +305,9 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit() {
-        if (window.electron?.onChannelChange) {
-            const unsubscribe = window.electron.onChannelChange(
+        const remoteControl = this.remoteControlBridge;
+        if (remoteControl?.onChannelChange) {
+            const unsubscribe = remoteControl.onChannelChange(
                 (data: { direction: 'up' | 'down' }) => {
                     this.handleRemoteChannelChange(data.direction);
                 }
@@ -312,8 +316,8 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
                 this.unsubscribeRemoteChannelChange = unsubscribe;
             }
         }
-        if (window.electron?.onRemoteControlCommand) {
-            const unsubscribe = window.electron.onRemoteControlCommand(
+        if (remoteControl?.onRemoteControlCommand) {
+            const unsubscribe = remoteControl.onRemoteControlCommand(
                 (command) => {
                     this.handleRemoteControlCommand(command);
                 }
@@ -552,6 +556,10 @@ export class LiveStreamLayoutComponent implements OnInit, OnDestroy {
             start: program.start,
             stop: program.stop ?? program.end,
         };
+    }
+
+    private get remoteControlBridge(): Window['electron'] | undefined {
+        return this.runtime.supportsRemoteControl ? window.electron : undefined;
     }
 
     private getProgramTimestampSeconds(

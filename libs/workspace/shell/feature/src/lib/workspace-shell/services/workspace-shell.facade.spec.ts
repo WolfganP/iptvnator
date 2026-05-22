@@ -6,10 +6,10 @@ import { Store } from '@ngrx/store';
 import { TranslateService } from '@ngx-translate/core';
 import { of } from 'rxjs';
 import {
-    PlaylistContextFacade,
     PlaylistRefreshActionService,
     type XtreamRefreshPreparationState,
-} from '@iptvnator/playlist/shared/util';
+} from '@iptvnator/playlist/shared/ui';
+import { PlaylistContextFacade } from '@iptvnator/playlist/shared/util';
 import {
     PORTAL_EXTERNAL_PLAYBACK,
     WorkspaceHeaderContextService,
@@ -17,7 +17,12 @@ import {
 } from '@iptvnator/portal/shared/util';
 import { StalkerStore } from '@iptvnator/portal/stalker/data-access';
 import { XtreamStore } from '@iptvnator/portal/xtream/data-access';
-import { PlaylistsService, SettingsStore } from '@iptvnator/services';
+import {
+    DownloadsService,
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import { PlaylistMeta } from '@iptvnator/shared/interfaces';
 import {
     WorkspaceStartupPreferencesService,
@@ -125,6 +130,7 @@ describe('WorkspaceShellFacade', () => {
         typeof signal<PlaylistSignalMeta | null>
     >;
     let playlistsSignal: ReturnType<typeof signal<PlaylistSignalMeta[]>>;
+    let downloadsActiveCountSignal: ReturnType<typeof signal<number>>;
     let refreshPreparationSignal: ReturnType<
         typeof signal<XtreamRefreshPreparationState | null>
     >;
@@ -135,10 +141,19 @@ describe('WorkspaceShellFacade', () => {
         persistLastRestorablePath: jest.Mock;
         showDashboard: jest.Mock;
     };
+    let runtime: {
+        isElectron: boolean;
+        isMacOS: boolean;
+        supportsDownloads: boolean;
+    };
 
     beforeEach(() => {
-        window.electron = { platform: 'darwin' } as typeof window.electron;
         showDashboardSignal = signal(true);
+        runtime = {
+            isElectron: true,
+            isMacOS: true,
+            supportsDownloads: true,
+        };
 
         activePlaylistSignal = signal({
             _id: 'pl-1',
@@ -150,6 +165,7 @@ describe('WorkspaceShellFacade', () => {
             { _id: 'pl-1', serverUrl: 'http://example.com' },
             { _id: 'pl-2', macAddress: '00:11:22:33' },
         ]);
+        downloadsActiveCountSignal = signal(0);
         refreshPreparationSignal = signal<XtreamRefreshPreparationState | null>(
             null
         );
@@ -255,8 +271,18 @@ describe('WorkspaceShellFacade', () => {
                     },
                 },
                 {
+                    provide: RuntimeCapabilitiesService,
+                    useValue: runtime,
+                },
+                {
                     provide: PlaylistsService,
                     useValue: playlistsService,
+                },
+                {
+                    provide: DownloadsService,
+                    useValue: {
+                        activeCount: downloadsActiveCountSignal,
+                    },
                 },
                 {
                     provide: MatDialog,
@@ -320,6 +346,17 @@ describe('WorkspaceShellFacade', () => {
         });
 
         facade = TestBed.inject(WorkspaceShellFacade);
+    });
+
+    it('derives desktop shell flags from runtime capabilities', () => {
+        expect(facade.isElectron).toBe(true);
+        expect(facade.isMacOS).toBe(true);
+
+        runtime.isElectron = false;
+        runtime.isMacOS = false;
+
+        expect(facade.isElectron).toBe(false);
+        expect(facade.isMacOS).toBe(false);
     });
 
     it('routes dashboard search Enter into the active Xtream playlist search', () => {
@@ -657,6 +694,19 @@ describe('WorkspaceShellFacade', () => {
             true
         );
         expect(commands.every((command) => command.enabled)).toBe(true);
+    });
+
+    it('hides the downloads command when downloads are unsupported', () => {
+        runtime.supportsDownloads = false;
+        activePlaylistSignal.set(null);
+        playlistsSignal.set([]);
+        facade.currentUrl.set('/workspace/dashboard');
+
+        const commands = facade.commandPaletteCommands();
+
+        expect(commands.map((command) => command.id)).not.toContain(
+            'open-downloads'
+        );
     });
 
     it('includes M3U navigation, playlist actions, and Multi-EPG on playlist routes', () => {

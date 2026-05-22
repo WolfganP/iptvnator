@@ -12,6 +12,7 @@ import {
 import {
     FormArray,
     FormBuilder,
+    FormControl,
     ReactiveFormsModule,
     Validators,
 } from '@angular/forms';
@@ -42,12 +43,14 @@ import {
     PlaylistBackupImportSummary,
     PlaylistBackupService,
     PlaylistsService,
+    RuntimeCapabilitiesService,
 } from '@iptvnator/services';
 import {
     EmbeddedMpvSupport,
     CoverSize,
     Language,
     normalizeExternalPlayerArguments,
+    Settings,
     StartupBehavior,
     StreamFormat,
     Theme,
@@ -119,6 +122,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private matDialog = inject(MatDialog);
     private playlistBackupService = inject(PlaylistBackupService);
     private readonly databaseService = inject(DatabaseService);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly dialogData = inject<{ isDialog: boolean } | null>(
         MAT_DIALOG_DATA,
         { optional: true }
@@ -132,13 +136,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
     readonly streamFormatEnum = StreamFormat;
 
     /** Flag that indicates whether the app runs in electron environment */
-    readonly isDesktop = !!window.electron;
+    readonly isDesktop = this.runtime.isElectron;
+    readonly supportsDesktopFileSave = this.runtime.supportsDesktopFileSave;
+    readonly supportsEpg = this.runtime.supportsEpg;
+    readonly supportsManagedExternalPlayers =
+        this.runtime.supportsManagedExternalPlayers;
+    readonly supportsExternalPlayerPathSettings =
+        this.runtime.supportsExternalPlayerPathSettings;
+    readonly supportsRemoteControl = this.runtime.supportsRemoteControl;
     readonly embeddedMpvSupport = signal<EmbeddedMpvSupport | null>(null);
     readonly supportsEmbeddedMpv = computed(
         () => this.isDesktop && !!this.embeddedMpvSupport()?.supported
     );
 
-    isPwa = this.dataService.getAppEnvironment() === 'pwa';
+    readonly isPwa = this.runtime.isPwa;
 
     private readonly settingsCtx = inject(SettingsContextService);
     readonly activeSection = this.settingsCtx.activeSection;
@@ -152,20 +163,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
                   },
               ]
             : []),
-        ...SETTINGS_OS_PLAYER_OPTIONS,
+        ...(this.supportsManagedExternalPlayers
+            ? SETTINGS_OS_PLAYER_OPTIONS
+            : []),
     ]);
 
     /** Player options */
     readonly players = computed(() => [
         ...SETTINGS_EMBEDDED_PLAYER_OPTIONS,
-        ...(this.isDesktop ? this.osPlayers() : []),
+        ...this.osPlayers(),
     ]);
 
     /** Current version of the app */
-    version: string;
+    version = '';
 
     /** Update message to show */
-    updateMessage: string;
+    updateMessage = '';
 
     /** EPG availability flag */
     epgAvailable$ = this.store.select(selectIsEpgAvailable);
@@ -178,7 +191,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
     /** Settings form object */
     settingsForm = this.formBuilder.group({
         player: [VideoPlayer.VideoJs],
-        ...(this.isDesktop ? { epgUrl: new FormArray([]) } : {}),
+        ...(this.supportsEpg
+            ? { epgUrl: new FormArray<FormControl<string | null>>([]) }
+            : {}),
         streamFormat: StreamFormat.M3u8StreamFormat,
         openStreamOnDoubleClick: false,
         language: Language.ENGLISH,
@@ -205,7 +220,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
         ],
         recordingFolder: '',
         coverSize: 'medium' as CoverSize,
-        ...(this.isDesktop ? { preferUploadedEpgOverXtream: false } : {}),
+        ...(this.supportsEpg
+            ? { preferUploadedEpgOverXtream: false }
+            : {}),
     });
 
     /** Form array with epg sources */
@@ -223,7 +240,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     private settingsStore = inject(SettingsStore);
     readonly sectionNavItems: SettingsSection[] = buildSettingsSectionNavItems(
-        this.isDesktop
+        {
+            supportsEpg: this.supportsEpg,
+            supportsRemoteControl: this.supportsRemoteControl,
+        }
     );
 
     readonly playlistDeleteSummary = computed<SettingsPlaylistDeleteSummary>(
@@ -331,7 +351,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
      * Fetches local IP addresses for remote control URL display
      */
     async fetchLocalIpAddresses(): Promise<void> {
-        if (window.electron?.getLocalIpAddresses) {
+        if (
+            this.supportsRemoteControl &&
+            window.electron?.getLocalIpAddresses
+        ) {
             const addresses = await window.electron.getLocalIpAddresses();
             this.localIpAddresses.set(addresses);
         }
@@ -355,7 +378,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         const currentSettings = this.settingsStore.getSettings();
         this.settingsForm.patchValue(currentSettings);
 
-        if (this.isDesktop && currentSettings.epgUrl) {
+        if (this.supportsEpg && currentSettings.epgUrl) {
             this.epgUrl.clear();
             this.setEpgUrls(currentSettings.epgUrl);
         }
@@ -468,28 +491,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
      * the indexed db store
      */
     onSubmit(): void {
-        const settings = {
-            ...this.settingsForm.value,
-            mpvPlayerPath: this.normalizeExternalPlayerPath(
-                this.settingsForm.value.mpvPlayerPath
-            ),
-            vlcPlayerPath: this.normalizeExternalPlayerPath(
-                this.settingsForm.value.vlcPlayerPath
-            ),
-            mpvPlayerArguments: normalizeExternalPlayerArguments(
-                this.settingsForm.value.mpvPlayerArguments
-            ),
-            vlcPlayerArguments: normalizeExternalPlayerArguments(
-                this.settingsForm.value.vlcPlayerArguments
-            ),
-        };
+        const settings = this.createSettingsFromFormValue();
 
         this.settingsStore.updateSettings(settings).then(() => {
             this.applyChangedSettings();
 
             if (window.electron) {
                 window.electron.updateSettings(settings);
+            }
 
+            if (this.supportsExternalPlayerPathSettings && window.electron) {
                 window.electron.setMpvPlayerPath(settings.mpvPlayerPath);
                 window.electron.setVlcPlayerPath(settings.vlcPlayerPath);
             }
@@ -505,25 +516,75 @@ export class SettingsComponent implements OnInit, OnDestroy {
         return playerPath?.trim() ?? '';
     }
 
+    private createSettingsFromFormValue(): Settings {
+        const currentSettings = this.settingsStore.getSettings();
+        const value = this.settingsForm.value;
+        const epgUrl = Array.isArray(value.epgUrl)
+            ? value.epgUrl.filter(
+                  (url): url is string => typeof url === 'string'
+              )
+            : (currentSettings.epgUrl ?? []);
+
+        return {
+            player: value.player ?? VideoPlayer.VideoJs,
+            streamFormat: value.streamFormat ?? StreamFormat.M3u8StreamFormat,
+            openStreamOnDoubleClick: value.openStreamOnDoubleClick ?? false,
+            language: value.language ?? Language.ENGLISH,
+            showCaptions: value.showCaptions ?? false,
+            showDashboard: value.showDashboard ?? true,
+            startupBehavior: value.startupBehavior ?? StartupBehavior.FirstView,
+            showExternalPlaybackBar: value.showExternalPlaybackBar ?? true,
+            theme: value.theme ?? Theme.SystemTheme,
+            mpvPlayerPath: this.normalizeExternalPlayerPath(
+                value.mpvPlayerPath
+            ),
+            mpvPlayerArguments: normalizeExternalPlayerArguments(
+                value.mpvPlayerArguments
+            ),
+            mpvReuseInstance: value.mpvReuseInstance ?? false,
+            vlcPlayerPath: this.normalizeExternalPlayerPath(
+                value.vlcPlayerPath
+            ),
+            vlcPlayerArguments: normalizeExternalPlayerArguments(
+                value.vlcPlayerArguments
+            ),
+            vlcReuseInstance: value.vlcReuseInstance ?? false,
+            remoteControl: value.remoteControl ?? false,
+            remoteControlPort: Number(value.remoteControlPort ?? 8765),
+            recordingFolder: value.recordingFolder ?? '',
+            coverSize: value.coverSize ?? 'medium',
+            epgUrl,
+            preferUploadedEpgOverXtream:
+                value.preferUploadedEpgOverXtream ??
+                currentSettings.preferUploadedEpgOverXtream ??
+                false,
+        };
+    }
+
     /**
      * Applies the changed settings to the app
      */
     applyChangedSettings(): void {
         this.settingsForm.markAsPristine();
-        if (this.isDesktop) {
+        if (this.supportsEpg) {
             let epgUrls = this.settingsForm.value.epgUrl;
             if (epgUrls) {
                 if (!Array.isArray(epgUrls)) {
                     epgUrls = [epgUrls];
                 }
-                epgUrls = epgUrls.filter((url) => url !== '');
-                if (epgUrls.length > 0) {
+                const validEpgUrls = epgUrls.filter(
+                    (url): url is string =>
+                        typeof url === 'string' && url !== ''
+                );
+                if (validEpgUrls.length > 0) {
                     // Fetch all EPG URLs at once
-                    this.epgService.fetchEpg(epgUrls);
+                    this.epgService.fetchEpg(validEpgUrls);
                 }
             }
         }
-        this.translate.use(this.settingsForm.value.language);
+        this.translate.use(
+            this.settingsForm.value.language ?? Language.ENGLISH
+        );
         this.settingsService.changeTheme(
             this.settingsForm.value.theme ?? Theme.SystemTheme
         );
@@ -550,7 +611,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
      * intends when clicking "Refresh".
      */
     refreshEpg(url: string): void {
-        if (!url || !window.electron?.forceFetchEpg) return;
+        if (!this.supportsEpg || !url) {
+            return;
+        }
         void window.electron.forceFetchEpg(url);
     }
 
@@ -560,11 +623,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
      * gets visible per-URL feedback.
      */
     refreshAllEpg(): void {
-        if (!window.electron?.forceFetchEpg) return;
+        if (!this.supportsEpg) return;
         const urls = (this.epgUrl.value as string[])
             .map((url) => url?.trim())
             .filter((url): url is string => Boolean(url));
-        urls.forEach((url) => window.electron.forceFetchEpg(url));
+        urls.forEach((url) => void window.electron.forceFetchEpg(url));
     }
 
     /**
@@ -597,7 +660,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
             ),
             onConfirm: async (): Promise<void> => {
                 if (
-                    !window.electron?.clearEpgData ||
+                    !this.supportsEpg ||
                     this.isClearingEpgData()
                 ) {
                     return;
@@ -639,7 +702,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         try {
             const backup = await this.playlistBackupService.exportBackup();
 
-            if (this.isDesktop && window.electron?.saveFileDialog) {
+            if (this.supportsDesktopFileSave && window.electron) {
                 const savePath = await window.electron.saveFileDialog(
                     backup.defaultFileName,
                     [

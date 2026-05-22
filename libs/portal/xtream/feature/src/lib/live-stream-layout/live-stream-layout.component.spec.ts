@@ -28,7 +28,10 @@ import {
 import { EpgItem, EpgProgram } from '@iptvnator/shared/interfaces';
 import { PortalChannelsListComponent } from '../portal-channels-list/portal-channels-list.component';
 import { LiveStreamLayoutComponent } from './live-stream-layout.component';
-import { SettingsStore } from '@iptvnator/services';
+import {
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 
 const LIVE_CHANNEL_SORT_STORAGE_KEY = 'xtream-live-channel-sort-mode';
 
@@ -179,6 +182,8 @@ describe('LiveStreamLayoutComponent', () => {
 
         window.electron = {
             updateRemoteControlStatus: jest.fn(),
+            onChannelChange: jest.fn(() => jest.fn()),
+            onRemoteControlCommand: jest.fn(() => jest.fn()),
         } as typeof window.electron;
 
         xtreamStore.constructStreamUrl.mockClear();
@@ -224,6 +229,24 @@ describe('LiveStreamLayoutComponent', () => {
                 { provide: XtreamStore, useValue: xtreamStore },
                 { provide: FavoritesService, useValue: favoritesService },
                 { provide: XtreamUrlService, useValue: xtreamUrlService },
+                {
+                    provide: RuntimeCapabilitiesService,
+                    useValue: {
+                        get supportsEpg() {
+                            return Boolean(window.electron);
+                        },
+                        get isElectron() {
+                            return Boolean(window.electron);
+                        },
+                        get supportsRemoteControl() {
+                            return Boolean(
+                                window.electron?.updateRemoteControlStatus &&
+                                    window.electron.onChannelChange &&
+                                    window.electron.onRemoteControlCommand
+                            );
+                        },
+                    },
+                },
                 { provide: SettingsStore, useValue: settingsStore },
                 { provide: PORTAL_PLAYER, useValue: portalPlayer },
             ],
@@ -289,6 +312,27 @@ describe('LiveStreamLayoutComponent', () => {
         expect(
             fixture.nativeElement.querySelector('app-epg-list')
         ).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('app-epg-view')).toBeNull();
+    });
+
+    it('hides the EPG panel in browser/PWA playback', () => {
+        fixture.destroy();
+        window.electron = undefined as unknown as typeof window.electron;
+
+        fixture = TestBed.createComponent(LiveStreamLayoutComponent);
+        component = fixture.componentInstance;
+
+        component.playLive(sampleChannel);
+        fixture.detectChanges();
+
+        expect(
+            fixture.nativeElement.querySelector('app-web-player-view')
+        ).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.epg')).toBeNull();
+        expect(
+            fixture.nativeElement.querySelector('app-live-epg-panel')
+        ).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-epg-list')).toBeNull();
         expect(fixture.nativeElement.querySelector('app-epg-view')).toBeNull();
     });
 
@@ -450,6 +494,20 @@ describe('LiveStreamLayoutComponent', () => {
                 epgTitle: 'Current Show',
             })
         );
+    });
+
+    it('does not publish remote-control status when the bridge is incomplete', () => {
+        fixture.destroy();
+        const updateRemoteControlStatus = jest.fn();
+        window.electron = {
+            updateRemoteControlStatus,
+        } as typeof window.electron;
+
+        fixture = TestBed.createComponent(LiveStreamLayoutComponent);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        expect(updateRemoteControlStatus).not.toHaveBeenCalled();
     });
 
     it('resolves a catchup url for archived program activation', async () => {

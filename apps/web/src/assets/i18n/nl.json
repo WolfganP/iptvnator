@@ -128,6 +128,19 @@
             "AUTO_REFRESH_UPDATE_SUCCESS": "Gelukt! De afspeellijsten zijn succesvol bijgewerkt",
             "AUTO_REFRESH_ENABLED": "Automatisch vernieuwen ingeschakeld"
         },
+        "ADD_PLAYLIST": {
+            "PICK_METHOD": "Kies hoe je verbinding wilt maken. Je kunt het later hernoemen.",
+            "METHOD_URL_LABEL": "M3U-URL",
+            "METHOD_URL_SUB": "Plak een link naar een externe .m3u of .m3u8",
+            "METHOD_FILE_LABEL": "M3U-bestand",
+            "METHOD_FILE_SUB": "Upload een afspeellijst vanaf je computer",
+            "METHOD_XTREAM_LABEL": "Xtream-inloggegevens",
+            "METHOD_XTREAM_SUB": "Maak verbinding met host, gebruikersnaam en wachtwoord",
+            "METHOD_STALKER_LABEL": "Stalker-portaal",
+            "METHOD_STALKER_SUB": "MAC-adres en portal-URL",
+            "METHOD_TEXT_LABEL": "Ruwe m3u-tekst",
+            "METHOD_TEXT_SUB": "Voor eenmalige lijsten of als je alleen tekst hebt"
+        },
         "FILE_UPLOAD": {
             "DRAG_DROP": "Sleep bestanden hierheen",
             "OR": "of",
@@ -362,18 +375,27 @@
         "PLAYLISTS_REMOVE_FAILED": "Could not delete playlists. Please try again."
     },
     "THEMES": {
-        "DARK_THEME": "Donker thema",
-        "LIGHT_THEME": "Licht thema",
-        "SYSTEM_THEME": "Systeemthema"
+        "DARK_THEME": "Donker",
+        "LIGHT_THEME": "Licht",
+        "SYSTEM_THEME": "Systeem"
+    },
+    "AUDIO_PLAYER": {
+        "PLAY": "Afspelen",
+        "PAUSE": "Pauzeren",
+        "PREVIOUS_STATION": "Vorige zender",
+        "NEXT_STATION": "Volgende zender",
+        "MUTE": "Dempen",
+        "UNMUTE": "Dempen opheffen",
+        "VOLUME": "Volume"
     },
     "PLAYBACK_DIAGNOSTICS": {
         "UNSUPPORTED_CONTAINER": {
             "TITLE": "This stream container is likely unsupported by the browser player",
-            "DESCRIPTION": "Chromium/Electron may not decode this container inline. Try MPV or VLC for broader codec support."
+            "DESCRIPTION": "The browser player may not decode this container inline. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA for broader codec support."
         },
         "UNSUPPORTED_CODEC": {
             "TITLE": "This stream codec is likely unsupported by the browser player",
-            "DESCRIPTION": "The stream advertises codecs that the built-in Chromium player may not decode. MPV or VLC can often play it."
+            "DESCRIPTION": "The stream advertises codecs that the browser player may not decode. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA."
         },
         "MEDIA_DECODE_ERROR": {
             "TITLE": "The browser player could not decode this stream",
@@ -385,7 +407,8 @@
         },
         "BROWSER_ACCESS_ERROR": {
             "TITLE": "The browser player could not access this stream",
-            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits."
+            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits.",
+            "PWA_DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. The PWA cannot launch external players directly; use the Copy stream URL action and open it manually in MPV, VLC, IINA, or another player."
         },
         "DRM_OR_ENCRYPTION": {
             "TITLE": "This stream may be encrypted or DRM-protected",
@@ -396,7 +419,7 @@
             "DESCRIPTION": "The stream failed in the built-in player, but the error did not identify a specific codec, container, or network cause."
         },
         "NATIVE_FALLBACK_TITLE": "Open it in a native player instead",
-        "INLINE_FAILURE_TITLE": "Check the stream or try again",
+        "INLINE_FAILURE_TITLE": "Copy the URL or try again",
         "ACTION_OPEN_MPV": "Open in MPV",
         "ACTION_OPEN_VLC": "Open in VLC",
         "ACTION_OPEN_MPV_HINT": "configured player",
@@ -506,6 +529,12 @@
         "TITLE": "TV-Gids",
         "NEXT_DAY": "Volgende dag",
         "PREVIOUS_DAY": "Vorige dag",
+        "ZOOM_IN": "Inzoomen",
+        "ZOOM_OUT": "Uitzoomen",
+        "FILTER_CHANNELS": "Kanalen filteren",
+        "CLOSE_FILTER": "Filter sluiten",
+        "SEARCH_PROGRAMS": "Programma's zoeken",
+        "CLOSE_PROGRAM_SEARCH": "Programmazoekopdracht sluiten",
         "LIVE_NOW": "Nu live",
         "LIVE_STREAM": "Live stream",
         "TIMESHIFT_AVAILABLE": "Doorspoelen is beschikbaar, klik om af te spelen",
@@ -823,11 +852,20 @@
         "CATEGORY_SORT_ARIA": "Categorieën sorteren",
         "DASHBOARD": {
             "CONTINUE_WATCHING": "Verder kijken",
+            "LIVE_FAVORITES": "Nu live op je favorieten",
+            "LIVE_RECENT": "Verder kijken met live tv",
+            "REMAINING_SECONDS": "Nog {{seconds}} sec",
+            "REMAINING_MINUTES": "Nog {{minutes}} min",
+            "REMAINING_HOURS": "Nog {{hours}} u",
+            "REMAINING_HOURS_MINUTES": "Nog {{hours}} u {{minutes}} min",
+            "PERCENT_WATCHED": "{{value}}% bekeken",
             "UNTITLED_SOURCE": "Naamloze bron",
             "GLOBAL_FAVORITES": "Algemene favorieten",
             "REMOVE_FROM_HISTORY": "Verwijderen uit geschiedenis",
             "RECENT_SOURCES": "Recent gebruikte bronnen",
             "MANAGE_ALL": "Alles beheren",
+            "SEE_ALL": "Alles bekijken",
+            "SEE_ALL_COUNT": "Alle {{count}} bekijken",
             "RECENTLY_WATCHED": "Recent bekeken",
             "XTREAM_RECENTLY_ADDED": "Recent toegevoegd op Xtream",
             "NO_HISTORY": "Geen items gevonden voor dit filter.",
@@ -840,6 +878,7 @@
             "TYPE_LIVE": "Live",
             "TYPE_MOVIE": "Film",
             "TYPE_SERIES": "Series",
+            "SEASON_EPISODE_BADGE": "S{{season}}·A{{episode}}",
             "NOT_YET_SYNCED": "Nog niet gesynchroniseerd"
         },
         "SHELL": {
@@ -1018,6 +1057,41 @@
             "GROUP_VIEW": "Huidige weergave",
             "GROUP_SECTION": "Deze sectie",
             "GROUP_RECENT": "Recent gebruikt"
+        },
+        "SHORTCUTS": {
+            "TITLE": "Keyboard shortcuts",
+            "SUBTITLE": "Workspace, navigation, playback, and dialog shortcuts available in IPTVnator.",
+            "OPEN_TOOLTIP": "Keyboard shortcuts (?)",
+            "OPEN_ARIA": "Open keyboard shortcuts",
+            "PLATFORM": {
+                "MAC": "macOS layout",
+                "OTHER": "Windows/Linux layout"
+            },
+            "GROUPS": {
+                "GLOBAL": "Global",
+                "NAVIGATION": "Navigation",
+                "PLAYBACK": "Playback",
+                "DIALOGS": "Dialogs and lists"
+            },
+            "ITEMS": {
+                "OPEN_KEYBOARD_SHORTCUTS": "Open this shortcuts list",
+                "OPEN_COMMAND_PALETTE": "Open command palette",
+                "OPEN_GLOBAL_SEARCH": "Open global search",
+                "OPEN_RECENTLY_VIEWED": "Open recently viewed",
+                "SUBMIT_SHELL_SEARCH": "Submit workspace search",
+                "TOGGLE_SIDEBAR": "Toggle sidebar",
+                "M3U_CHANNEL_NUMBER": "Select M3U channel by number",
+                "PLAY_PAUSE": "Play or pause embedded MPV playback",
+                "TOGGLE_FULLSCREEN": "Toggle embedded MPV fullscreen",
+                "SEEK": "Seek embedded MPV playback by 5 seconds",
+                "ADJUST_VOLUME": "Adjust volume by 5%",
+                "MUTE_AUDIO": "Mute audio",
+                "CLOSE_PLAYER_POPOVERS": "Close embedded MPV popovers",
+                "COMMAND_PALETTE_NAVIGATION": "Move command palette selection",
+                "COMMAND_PALETTE_RUN": "Run selected command palette item",
+                "CLOSE_DIALOGS": "Close dialog or dismiss overlay",
+                "DOWNLOADS_OPEN_ITEM": "Open focused download item in the library"
+            }
         },
         "GLOBAL_FAVORITES": {
             "TITLE": "Algemene favorieten",

@@ -128,6 +128,19 @@
             "AUTO_REFRESH_UPDATE_SUCCESS": "Επιτυχία! Οι λίστες αναπαραγωγής ενημερώθηκαν με επιτυχία",
             "AUTO_REFRESH_ENABLED": "Η αυτόματη ανανέωση είναι ενεργοποιημένη"
         },
+        "ADD_PLAYLIST": {
+            "PICK_METHOD": "Επιλέξτε τρόπο σύνδεσης. Μπορείτε να τη μετονομάσετε αργότερα.",
+            "METHOD_URL_LABEL": "M3U URL",
+            "METHOD_URL_SUB": "Επικολλήστε έναν σύνδεσμο σε απομακρυσμένο .m3u ή .m3u8",
+            "METHOD_FILE_LABEL": "Αρχείο M3U",
+            "METHOD_FILE_SUB": "Ανεβάστε μια λίστα αναπαραγωγής από τον υπολογιστή σας",
+            "METHOD_XTREAM_LABEL": "Διαπιστευτήρια Xtream",
+            "METHOD_XTREAM_SUB": "Σύνδεση με διακομιστή, όνομα χρήστη και κωδικό πρόσβασης",
+            "METHOD_STALKER_LABEL": "Πύλη Stalker",
+            "METHOD_STALKER_SUB": "MAC address και URL πύλης",
+            "METHOD_TEXT_LABEL": "Ακατέργαστο κείμενο m3u",
+            "METHOD_TEXT_SUB": "Για λίστες μίας χρήσης ή όταν έχετε μόνο κείμενο"
+        },
         "FILE_UPLOAD": {
             "DRAG_DROP": "Σύρετε και αποθέστε αρχεία εδώ",
             "OR": "or",
@@ -362,18 +375,27 @@
         "PLAYLISTS_REMOVE_FAILED": "Could not delete playlists. Please try again."
     },
     "THEMES": {
-        "DARK_THEME": "Σκούρο θέμα",
-        "LIGHT_THEME": "Ανοιχτόχρωμο θέμα",
-        "SYSTEM_THEME": "Θέμα συστήματος"
+        "DARK_THEME": "Σκούρο",
+        "LIGHT_THEME": "Ανοιχτό",
+        "SYSTEM_THEME": "Σύστημα"
+    },
+    "AUDIO_PLAYER": {
+        "PLAY": "Αναπαραγωγή",
+        "PAUSE": "Παύση",
+        "PREVIOUS_STATION": "Προηγούμενος σταθμός",
+        "NEXT_STATION": "Επόμενος σταθμός",
+        "MUTE": "Σίγαση",
+        "UNMUTE": "Κατάργηση σίγασης",
+        "VOLUME": "Ένταση"
     },
     "PLAYBACK_DIAGNOSTICS": {
         "UNSUPPORTED_CONTAINER": {
             "TITLE": "This stream container is likely unsupported by the browser player",
-            "DESCRIPTION": "Chromium/Electron may not decode this container inline. Try MPV or VLC for broader codec support."
+            "DESCRIPTION": "The browser player may not decode this container inline. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA for broader codec support."
         },
         "UNSUPPORTED_CODEC": {
             "TITLE": "This stream codec is likely unsupported by the browser player",
-            "DESCRIPTION": "The stream advertises codecs that the built-in Chromium player may not decode. MPV or VLC can often play it."
+            "DESCRIPTION": "The stream advertises codecs that the browser player may not decode. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA."
         },
         "MEDIA_DECODE_ERROR": {
             "TITLE": "The browser player could not decode this stream",
@@ -385,7 +407,8 @@
         },
         "BROWSER_ACCESS_ERROR": {
             "TITLE": "The browser player could not access this stream",
-            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits."
+            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits.",
+            "PWA_DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. The PWA cannot launch external players directly; use the Copy stream URL action and open it manually in MPV, VLC, IINA, or another player."
         },
         "DRM_OR_ENCRYPTION": {
             "TITLE": "This stream may be encrypted or DRM-protected",
@@ -396,7 +419,7 @@
             "DESCRIPTION": "The stream failed in the built-in player, but the error did not identify a specific codec, container, or network cause."
         },
         "NATIVE_FALLBACK_TITLE": "Open it in a native player instead",
-        "INLINE_FAILURE_TITLE": "Check the stream or try again",
+        "INLINE_FAILURE_TITLE": "Copy the URL or try again",
         "ACTION_OPEN_MPV": "Open in MPV",
         "ACTION_OPEN_VLC": "Open in VLC",
         "ACTION_OPEN_MPV_HINT": "configured player",
@@ -506,6 +529,12 @@
         "TITLE": "Ηλεκτρονικός Οδηγός Προγράμματος",
         "NEXT_DAY": "Επόμενη μέρα",
         "PREVIOUS_DAY": "Προηγούμενη ημέρα",
+        "ZOOM_IN": "Μεγέθυνση",
+        "ZOOM_OUT": "Σμίκρυνση",
+        "FILTER_CHANNELS": "Φιλτράρισμα καναλιών",
+        "CLOSE_FILTER": "Κλείσιμο φίλτρου",
+        "SEARCH_PROGRAMS": "Αναζήτηση προγραμμάτων",
+        "CLOSE_PROGRAM_SEARCH": "Κλείσιμο αναζήτησης προγραμμάτων",
         "LIVE_NOW": "Ζωντανά τώρα",
         "LIVE_STREAM": "Ζωντανή ροή",
         "TIMESHIFT_AVAILABLE": "Η χρονική μετατόπιση είναι διαθέσιμη, κάντε κλικ για αναπαραγωγή.",
@@ -823,11 +852,20 @@
         "CATEGORY_SORT_ARIA": "Ταξινόμηση κατηγοριών",
         "DASHBOARD": {
             "CONTINUE_WATCHING": "Συνέχιση παρακολούθησης",
+            "LIVE_FAVORITES": "Ζωντανά τώρα στα αγαπημένα σας",
+            "LIVE_RECENT": "Συνέχιση με ζωντανή TV",
+            "REMAINING_SECONDS": "Απομένουν {{seconds}} δ",
+            "REMAINING_MINUTES": "Απομένουν {{minutes}} λ",
+            "REMAINING_HOURS": "Απομένουν {{hours}} ώ",
+            "REMAINING_HOURS_MINUTES": "Απομένουν {{hours}} ώ {{minutes}} λ",
+            "PERCENT_WATCHED": "Προβλήθηκε {{value}}%",
             "UNTITLED_SOURCE": "Πηγή χωρίς τίτλο",
             "GLOBAL_FAVORITES": "Βασικά Αγαπημένα",
             "REMOVE_FROM_HISTORY": "Αφαίρεση από το ιστορικό",
             "RECENT_SOURCES": "Πρόσφατα χρησιμοποιημένες πηγές",
             "MANAGE_ALL": "Διαχείριση όλων",
+            "SEE_ALL": "Δείτε όλα",
+            "SEE_ALL_COUNT": "Δείτε όλα {{count}}",
             "RECENTLY_WATCHED": "Πρόσφατα προβληθέντα",
             "XTREAM_RECENTLY_ADDED": "Πρόσφατα προστέθηκαν στο Xtream",
             "NO_HISTORY": "Δεν βρέθηκαν στοιχεία για αυτό το φίλτρο.",
@@ -840,6 +878,7 @@
             "TYPE_LIVE": "Ζωντανά",
             "TYPE_MOVIE": "Ταινία",
             "TYPE_SERIES": "Σειρά",
+            "SEASON_EPISODE_BADGE": "Σ{{season}}·Ε{{episode}}",
             "NOT_YET_SYNCED": "Δεν έχει συγχρονιστεί ακόμα"
         },
         "SHELL": {
@@ -1018,6 +1057,41 @@
             "GROUP_VIEW": "Τρέχουσα προβολή",
             "GROUP_SECTION": "Αυτή η ενότητα",
             "GROUP_RECENT": "Πρόσφατα χρησιμοποιημένες"
+        },
+        "SHORTCUTS": {
+            "TITLE": "Keyboard shortcuts",
+            "SUBTITLE": "Workspace, navigation, playback, and dialog shortcuts available in IPTVnator.",
+            "OPEN_TOOLTIP": "Keyboard shortcuts (?)",
+            "OPEN_ARIA": "Open keyboard shortcuts",
+            "PLATFORM": {
+                "MAC": "macOS layout",
+                "OTHER": "Windows/Linux layout"
+            },
+            "GROUPS": {
+                "GLOBAL": "Global",
+                "NAVIGATION": "Navigation",
+                "PLAYBACK": "Playback",
+                "DIALOGS": "Dialogs and lists"
+            },
+            "ITEMS": {
+                "OPEN_KEYBOARD_SHORTCUTS": "Open this shortcuts list",
+                "OPEN_COMMAND_PALETTE": "Open command palette",
+                "OPEN_GLOBAL_SEARCH": "Open global search",
+                "OPEN_RECENTLY_VIEWED": "Open recently viewed",
+                "SUBMIT_SHELL_SEARCH": "Submit workspace search",
+                "TOGGLE_SIDEBAR": "Toggle sidebar",
+                "M3U_CHANNEL_NUMBER": "Select M3U channel by number",
+                "PLAY_PAUSE": "Play or pause embedded MPV playback",
+                "TOGGLE_FULLSCREEN": "Toggle embedded MPV fullscreen",
+                "SEEK": "Seek embedded MPV playback by 5 seconds",
+                "ADJUST_VOLUME": "Adjust volume by 5%",
+                "MUTE_AUDIO": "Mute audio",
+                "CLOSE_PLAYER_POPOVERS": "Close embedded MPV popovers",
+                "COMMAND_PALETTE_NAVIGATION": "Move command palette selection",
+                "COMMAND_PALETTE_RUN": "Run selected command palette item",
+                "CLOSE_DIALOGS": "Close dialog or dismiss overlay",
+                "DOWNLOADS_OPEN_ITEM": "Open focused download item in the library"
+            }
         },
         "GLOBAL_FAVORITES": {
             "TITLE": "Βασικά Αγαπημένα",

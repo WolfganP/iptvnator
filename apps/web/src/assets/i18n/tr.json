@@ -128,6 +128,19 @@
             "AUTO_REFRESH_UPDATE_SUCCESS": "Başarılı! Oynatma listeleri başarıyla güncellendi",
             "AUTO_REFRESH_ENABLED": "Otomatik yenileme etkin"
         },
+        "ADD_PLAYLIST": {
+            "PICK_METHOD": "Nasıl bağlanmak istediğinizi seçin. Daha sonra yeniden adlandırabilirsiniz.",
+            "METHOD_URL_LABEL": "M3U URL",
+            "METHOD_URL_SUB": "Uzak bir .m3u veya .m3u8 bağlantısını yapıştırın",
+            "METHOD_FILE_LABEL": "M3U dosyası",
+            "METHOD_FILE_SUB": "Bilgisayarınızdan bir oynatma listesi yükleyin",
+            "METHOD_XTREAM_LABEL": "Xtream kimlik bilgileri",
+            "METHOD_XTREAM_SUB": "Sunucu, kullanıcı adı ve parola ile bağlanın",
+            "METHOD_STALKER_LABEL": "Stalker portalı",
+            "METHOD_STALKER_SUB": "MAC adresi ve portal URL'si",
+            "METHOD_TEXT_LABEL": "Ham m3u metni",
+            "METHOD_TEXT_SUB": "Tek seferlik listeler veya yalnızca metniniz olduğunda"
+        },
         "FILE_UPLOAD": {
             "DRAG_DROP": "Dosyaları buraya sürükleyip bırakın",
             "OR": "veya",
@@ -362,18 +375,27 @@
         "PLAYLISTS_REMOVE_FAILED": "Could not delete playlists. Please try again."
     },
     "THEMES": {
-        "DARK_THEME": "Koyu tema",
-        "LIGHT_THEME": "Açık tema",
-        "SYSTEM_THEME": "Sistem teması"
+        "DARK_THEME": "Koyu",
+        "LIGHT_THEME": "Açık",
+        "SYSTEM_THEME": "Sistem"
+    },
+    "AUDIO_PLAYER": {
+        "PLAY": "Oynat",
+        "PAUSE": "Duraklat",
+        "PREVIOUS_STATION": "Önceki istasyon",
+        "NEXT_STATION": "Sonraki istasyon",
+        "MUTE": "Sesi kapat",
+        "UNMUTE": "Sesi aç",
+        "VOLUME": "Ses seviyesi"
     },
     "PLAYBACK_DIAGNOSTICS": {
         "UNSUPPORTED_CONTAINER": {
             "TITLE": "This stream container is likely unsupported by the browser player",
-            "DESCRIPTION": "Chromium/Electron may not decode this container inline. Try MPV or VLC for broader codec support."
+            "DESCRIPTION": "The browser player may not decode this container inline. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA for broader codec support."
         },
         "UNSUPPORTED_CODEC": {
             "TITLE": "This stream codec is likely unsupported by the browser player",
-            "DESCRIPTION": "The stream advertises codecs that the built-in Chromium player may not decode. MPV or VLC can often play it."
+            "DESCRIPTION": "The stream advertises codecs that the browser player may not decode. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA."
         },
         "MEDIA_DECODE_ERROR": {
             "TITLE": "The browser player could not decode this stream",
@@ -385,7 +407,8 @@
         },
         "BROWSER_ACCESS_ERROR": {
             "TITLE": "The browser player could not access this stream",
-            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits."
+            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits.",
+            "PWA_DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. The PWA cannot launch external players directly; use the Copy stream URL action and open it manually in MPV, VLC, IINA, or another player."
         },
         "DRM_OR_ENCRYPTION": {
             "TITLE": "This stream may be encrypted or DRM-protected",
@@ -396,7 +419,7 @@
             "DESCRIPTION": "The stream failed in the built-in player, but the error did not identify a specific codec, container, or network cause."
         },
         "NATIVE_FALLBACK_TITLE": "Open it in a native player instead",
-        "INLINE_FAILURE_TITLE": "Check the stream or try again",
+        "INLINE_FAILURE_TITLE": "Copy the URL or try again",
         "ACTION_OPEN_MPV": "Open in MPV",
         "ACTION_OPEN_VLC": "Open in VLC",
         "ACTION_OPEN_MPV_HINT": "configured player",
@@ -506,6 +529,12 @@
         "TITLE": "Elektronik Program Rehberi",
         "NEXT_DAY": "Sonraki gün",
         "PREVIOUS_DAY": "Önceki gün",
+        "ZOOM_IN": "Yakınlaştır",
+        "ZOOM_OUT": "Uzaklaştır",
+        "FILTER_CHANNELS": "Kanalları filtrele",
+        "CLOSE_FILTER": "Filtreyi kapat",
+        "SEARCH_PROGRAMS": "Programları ara",
+        "CLOSE_PROGRAM_SEARCH": "Program aramayı kapat",
         "LIVE_NOW": "Şu an canlı",
         "LIVE_STREAM": "Canlı yayın",
         "TIMESHIFT_AVAILABLE": "Zaman kaydırma mevcut, tıklayarak oynat",
@@ -823,11 +852,20 @@
         "CATEGORY_SORT_ARIA": "Kategorileri sırala",
         "DASHBOARD": {
             "CONTINUE_WATCHING": "İzlemeye Devam Et",
+            "LIVE_FAVORITES": "Favorilerinizde şu an canlı",
+            "LIVE_RECENT": "Canlı TV ile devam et",
+            "REMAINING_SECONDS": "{{seconds}} sn kaldı",
+            "REMAINING_MINUTES": "{{minutes}} dk kaldı",
+            "REMAINING_HOURS": "{{hours}} sa kaldı",
+            "REMAINING_HOURS_MINUTES": "{{hours}} sa {{minutes}} dk kaldı",
+            "PERCENT_WATCHED": "{{value}}% izlendi",
             "UNTITLED_SOURCE": "Adsız kaynak",
             "GLOBAL_FAVORITES": "Tüm Favoriler",
             "REMOVE_FROM_HISTORY": "Geçmişten kaldır",
             "RECENT_SOURCES": "Son Kullanılan Kaynaklar",
             "MANAGE_ALL": "Tümünü yönet",
+            "SEE_ALL": "Tümünü gör",
+            "SEE_ALL_COUNT": "{{count}} öğenin tümünü gör",
             "RECENTLY_WATCHED": "Son İzlenenler",
             "XTREAM_RECENTLY_ADDED": "Xtream'de Yeni Eklenenler",
             "NO_HISTORY": "Bu filtre için öğe bulunamadı.",
@@ -840,6 +878,7 @@
             "TYPE_LIVE": "Canlı",
             "TYPE_MOVIE": "Film",
             "TYPE_SERIES": "Dizi",
+            "SEASON_EPISODE_BADGE": "S{{season}}·B{{episode}}",
             "NOT_YET_SYNCED": "Henüz eşitlenmedi"
         },
         "SHELL": {
@@ -1018,6 +1057,41 @@
             "GROUP_VIEW": "Geçerli görünüm",
             "GROUP_SECTION": "Bu bölüm",
             "GROUP_RECENT": "Son kullanılanlar"
+        },
+        "SHORTCUTS": {
+            "TITLE": "Keyboard shortcuts",
+            "SUBTITLE": "Workspace, navigation, playback, and dialog shortcuts available in IPTVnator.",
+            "OPEN_TOOLTIP": "Keyboard shortcuts (?)",
+            "OPEN_ARIA": "Open keyboard shortcuts",
+            "PLATFORM": {
+                "MAC": "macOS layout",
+                "OTHER": "Windows/Linux layout"
+            },
+            "GROUPS": {
+                "GLOBAL": "Global",
+                "NAVIGATION": "Navigation",
+                "PLAYBACK": "Playback",
+                "DIALOGS": "Dialogs and lists"
+            },
+            "ITEMS": {
+                "OPEN_KEYBOARD_SHORTCUTS": "Open this shortcuts list",
+                "OPEN_COMMAND_PALETTE": "Open command palette",
+                "OPEN_GLOBAL_SEARCH": "Open global search",
+                "OPEN_RECENTLY_VIEWED": "Open recently viewed",
+                "SUBMIT_SHELL_SEARCH": "Submit workspace search",
+                "TOGGLE_SIDEBAR": "Toggle sidebar",
+                "M3U_CHANNEL_NUMBER": "Select M3U channel by number",
+                "PLAY_PAUSE": "Play or pause embedded MPV playback",
+                "TOGGLE_FULLSCREEN": "Toggle embedded MPV fullscreen",
+                "SEEK": "Seek embedded MPV playback by 5 seconds",
+                "ADJUST_VOLUME": "Adjust volume by 5%",
+                "MUTE_AUDIO": "Mute audio",
+                "CLOSE_PLAYER_POPOVERS": "Close embedded MPV popovers",
+                "COMMAND_PALETTE_NAVIGATION": "Move command palette selection",
+                "COMMAND_PALETTE_RUN": "Run selected command palette item",
+                "CLOSE_DIALOGS": "Close dialog or dismiss overlay",
+                "DOWNLOADS_OPEN_ITEM": "Open focused download item in the library"
+            }
         },
         "GLOBAL_FAVORITES": {
             "TITLE": "Tüm Favoriler",

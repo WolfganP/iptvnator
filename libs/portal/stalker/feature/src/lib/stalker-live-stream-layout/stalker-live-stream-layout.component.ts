@@ -25,12 +25,17 @@ import {
     ChannelListSkeletonComponent,
     ResizableDirective,
 } from '@iptvnator/ui/components';
-import { PlaylistsService, SettingsStore } from '@iptvnator/services';
+import {
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import {
     Channel,
     EpgItem,
     EpgProgram,
     ResolvedPortalPlayback,
+    StalkerPortalItem,
 } from '@iptvnator/shared/interfaces';
 import {
     EpgDateNavigationDirection,
@@ -66,6 +71,11 @@ import {
     normalizeStalkerEntityId,
 } from '@iptvnator/portal/stalker/data-access';
 
+type StalkerPlayableChannel = StalkerPortalItem & {
+    cmd?: string;
+    has_files?: unknown;
+};
+
 @Component({
     selector: 'app-stalker-live-stream-layout',
     templateUrl: './stalker-live-stream-layout.component.html',
@@ -91,6 +101,7 @@ import {
 export class StalkerLiveStreamLayoutComponent implements OnDestroy {
     readonly stalkerStore = inject(StalkerStore);
     private readonly playlistService = inject(PlaylistsService);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly settingsStore = inject(SettingsStore);
     private readonly portalPlayer = inject(PORTAL_PLAYER);
     private readonly snackBar = inject(MatSnackBar);
@@ -138,6 +149,8 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
 
     readonly selectedChannelId = this.stalkerStore.selectedItvId;
     protected readonly normalizeStalkerEntityId = normalizeStalkerEntityId;
+    readonly isElectron = this.runtime.isElectron;
+    readonly supportsEpg = this.runtime.supportsEpg;
     readonly openStreamOnDoubleClick = computed(() =>
         this.settingsStore.openStreamOnDoubleClick()
     );
@@ -246,19 +259,22 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
 
     constructor() {
         // Load favorites for current playlist
-        this.playlistService
-            .getPortalFavorites(this.stalkerStore.currentPlaylist()?._id)
-            .pipe(takeUntilDestroyed())
-            .subscribe((favs) => {
-                favs.forEach((fav: StalkerFavoriteItem) => {
-                    if (fav.id !== undefined) {
-                        this.favorites.set(
-                            normalizeStalkerEntityId(fav.id),
-                            true
-                        );
-                    }
+        const playlistId = this.stalkerStore.currentPlaylist()?._id;
+        if (playlistId) {
+            this.playlistService
+                .getPortalFavorites(playlistId)
+                .pipe(takeUntilDestroyed())
+                .subscribe((favs) => {
+                    favs.forEach((fav: StalkerFavoriteItem) => {
+                        if (fav.id !== undefined) {
+                            this.favorites.set(
+                                normalizeStalkerEntityId(fav.id),
+                                true
+                            );
+                        }
+                    });
                 });
-            });
+        }
 
         // Reset channels/page on category change
         effect(() => {
@@ -288,7 +304,7 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
                 }
             }
 
-            if (this.isRadioMode()) {
+            if (this.isRadioMode() || !this.supportsEpg) {
                 this.clearEpgPreviewMaps();
                 this.cdr.markForCheck();
                 return;
@@ -319,7 +335,8 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
         });
 
         effect(() => {
-            if (!window.electron?.updateRemoteControlStatus) {
+            const remoteControl = this.remoteControlBridge;
+            if (!remoteControl?.updateRemoteControlStatus) {
                 return;
             }
 
@@ -328,7 +345,7 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
             const channels = this.visibleChannels();
 
             if (selectedType !== 'itv' || !selectedItem?.id) {
-                window.electron.updateRemoteControlStatus({
+                remoteControl.updateRemoteControlStatus({
                     portal: 'stalker',
                     isLiveView: false,
                     supportsVolume: false,
@@ -341,7 +358,7 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
             );
             const currentProgram = this.currentProgram();
 
-            window.electron.updateRemoteControlStatus({
+            remoteControl.updateRemoteControlStatus({
                 portal: 'stalker',
                 isLiveView: true,
                 channelName: selectedItem.o_name || selectedItem.name,
@@ -353,8 +370,9 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
             });
         });
 
-        if (window.electron?.onChannelChange) {
-            const unsubscribe = window.electron.onChannelChange(
+        const remoteControl = this.remoteControlBridge;
+        if (remoteControl?.onChannelChange) {
+            const unsubscribe = remoteControl.onChannelChange(
                 (data: { direction: 'up' | 'down' }) => {
                     this.handleRemoteChannelChange(data.direction);
                 }
@@ -363,8 +381,8 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
                 this.unsubscribeRemoteChannelChange = unsubscribe;
             }
         }
-        if (window.electron?.onRemoteControlCommand) {
-            const unsubscribe = window.electron.onRemoteControlCommand(
+        if (remoteControl?.onRemoteControlCommand) {
+            const unsubscribe = remoteControl.onRemoteControlCommand(
                 (command) => {
                     this.handleRemoteControlCommand(command);
                 }
@@ -413,7 +431,9 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
                 return;
             }
 
-            void this.loadEpgForChannel(item);
+            if (this.supportsEpg) {
+                void this.loadEpgForChannel(item);
+            }
 
             if (this.usesEmbeddedPlayer()) {
                 this.activePlayback.set(playback);
@@ -427,10 +447,10 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
 
             this.logger.error('Playback failed', error);
             const errorMessage =
-                error?.message === 'nothing_to_play'
+                error instanceof Error && error.message === 'nothing_to_play'
                     ? this.translate.instant('PORTALS.CONTENT_NOT_AVAILABLE')
                     : this.translate.instant('PORTALS.PLAYBACK_ERROR');
-            this.snackBar.open(errorMessage, null, { duration: 3000 });
+            this.snackBar.open(errorMessage, undefined, { duration: 3000 });
         }
     }
 
@@ -446,9 +466,10 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
             return this.playbackResolution.promise;
         }
 
+        const playableItem = this.toPlayableChannel(item);
         const promise = this.isRadioMode()
-            ? this.stalkerStore.resolveRadioPlayback(item)
-            : this.stalkerStore.resolveItvPlayback(item);
+            ? this.stalkerStore.resolveRadioPlayback(playableItem)
+            : this.stalkerStore.resolveItvPlayback(playableItem);
         this.playbackResolution = { channelId: playbackChannelId, promise };
 
         const cleanup = () => {
@@ -468,8 +489,9 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
             this.stalkerStore.removeFromFavorites(itemId);
             this.favorites.delete(itemId);
         } else {
+            const playableItem = this.toPlayableChannel(item);
             this.stalkerStore.addToFavorites({
-                ...item,
+                ...playableItem,
                 category_id: this.isRadioMode() ? 'radio' : 'itv',
                 title: item.o_name || item.name,
                 cover: item.logo,
@@ -523,6 +545,13 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
     }
 
     private async loadEpgForChannel(item: StalkerItvChannel) {
+        if (!this.supportsEpg) {
+            this.fallbackEpgPrograms.set([]);
+            this.isLoadingFallbackEpg.set(false);
+            this.clearEpgPreviewMaps();
+            return;
+        }
+
         const requestId = ++this.epgLoadRequestId;
         const normalizedChannelId = normalizeStalkerEntityId(item.id);
         const playlistId = this.stalkerStore.currentPlaylist()?._id ?? null;
@@ -620,6 +649,8 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
         const nowMs = Date.now();
 
         if (
+            startMs !== null &&
+            stopMs !== null &&
             Number.isFinite(startMs) &&
             Number.isFinite(stopMs) &&
             nowMs >= startMs &&
@@ -634,6 +665,11 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
         }
 
         this.currentProgramsProgress.delete(channelId);
+    }
+
+    private toPlayableChannel(item: StalkerItvChannel): StalkerPlayableChannel {
+        const { is_series, ...rest } = item;
+        return is_series == null ? rest : { ...rest, is_series };
     }
 
     private setupScrollListener() {
@@ -763,6 +799,10 @@ export class StalkerLiveStreamLayoutComponent implements OnDestroy {
             requestId === this.epgLoadRequestId &&
             this.selectedChannelId() === normalizedChannelId
         );
+    }
+
+    private get remoteControlBridge(): Window['electron'] | undefined {
+        return this.runtime.supportsRemoteControl ? window.electron : undefined;
     }
 
     private handleRemoteChannelChange(direction: 'up' | 'down'): void {

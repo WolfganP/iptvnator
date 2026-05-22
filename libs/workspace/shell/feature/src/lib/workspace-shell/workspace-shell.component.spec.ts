@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { RouterOutlet, provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import {
     WorkspacePortalContext,
     WorkspaceShellContextPanel,
@@ -16,6 +17,7 @@ import {
     WorkspaceHeaderBulkAction,
     WorkspaceShellFacade,
 } from './services/workspace-shell.facade';
+import { WorkspaceKeyboardShortcutsService } from '../workspace-keyboard-shortcuts/workspace-keyboard-shortcuts.service';
 
 @Component({
     selector: 'app-workspace-shell-rail',
@@ -57,10 +59,12 @@ class MockWorkspaceShellHeaderComponent {
     readonly hasNoPlaylists = input(false);
     readonly isDownloadsView = input(false);
     readonly hasActiveDownloads = input(false);
+    readonly isSettingsRoute = input(false);
     readonly headerBulkAction = input<WorkspaceHeaderBulkAction | null>(null);
     readonly searchChanged = output<string>();
     readonly searchSubmitted = output<string>();
     readonly commandPaletteRequested = output<void>();
+    readonly shortcutsRequested = output<void>();
     readonly addPlaylistRequested = output<void>();
     readonly headerShortcutRequested = output<void>();
     readonly refreshPlaylistRequested = output<void>();
@@ -116,6 +120,10 @@ class MockPlaylistDropZoneDirective {
     standalone: true,
 })
 class MockWorkspaceShellImportOverlayComponent {}
+
+class MockWorkspaceKeyboardShortcutsService {
+    openShortcutsDialog = jest.fn();
+}
 
 class MockWorkspaceShellFacade {
     readonly brandLink = signal('/workspace/dashboard');
@@ -215,6 +223,10 @@ describe('WorkspaceShellComponent', () => {
                             provide: WorkspaceShellFacade,
                             useValue: facade,
                         },
+                        {
+                            provide: WorkspaceKeyboardShortcutsService,
+                            useClass: MockWorkspaceKeyboardShortcutsService,
+                        },
                     ],
                 },
             })
@@ -264,6 +276,10 @@ describe('WorkspaceShellComponent', () => {
                             provide: WorkspaceShellFacade,
                             useValue: facade,
                         },
+                        {
+                            provide: WorkspaceKeyboardShortcutsService,
+                            useClass: MockWorkspaceKeyboardShortcutsService,
+                        },
                     ],
                 },
             })
@@ -286,5 +302,52 @@ describe('WorkspaceShellComponent', () => {
                 'app-workspace-shell-import-overlay'
             )
         ).not.toBeNull();
+    });
+
+    it('opens keyboard shortcuts when the header requests them', async () => {
+        const facade = new MockWorkspaceShellFacade();
+
+        await TestBed.configureTestingModule({
+            imports: [WorkspaceShellComponent],
+            providers: [provideRouter([])],
+        })
+            .overrideComponent(WorkspaceShellComponent, {
+                set: {
+                    imports: [
+                        RouterOutlet,
+                        MockExternalPlaybackDockComponent,
+                        MockPlaylistDropOverlayComponent,
+                        MockPlaylistDropZoneDirective,
+                        MockWorkspaceShellContextSidebarComponent,
+                        MockWorkspaceShellHeaderComponent,
+                        MockWorkspaceShellImportOverlayComponent,
+                        MockWorkspaceShellRailComponent,
+                    ],
+                    providers: [
+                        {
+                            provide: WorkspaceShellFacade,
+                            useValue: facade,
+                        },
+                        {
+                            provide: WorkspaceKeyboardShortcutsService,
+                            useClass: MockWorkspaceKeyboardShortcutsService,
+                        },
+                    ],
+                },
+            })
+            .compileComponents();
+
+        const fixture = TestBed.createComponent(WorkspaceShellComponent);
+        fixture.detectChanges();
+        const shortcutsService = fixture.debugElement.injector.get(
+            WorkspaceKeyboardShortcutsService
+        ) as unknown as MockWorkspaceKeyboardShortcutsService;
+        const header = fixture.debugElement.query(
+            By.directive(MockWorkspaceShellHeaderComponent)
+        ).componentInstance as MockWorkspaceShellHeaderComponent;
+
+        header.shortcutsRequested.emit();
+
+        expect(shortcutsService.openShortcutsDialog).toHaveBeenCalledTimes(1);
     });
 });

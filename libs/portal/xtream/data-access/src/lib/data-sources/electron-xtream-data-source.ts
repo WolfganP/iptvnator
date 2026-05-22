@@ -360,7 +360,7 @@ export class ElectronXtreamDataSource implements IXtreamDataSource {
     ): Promise<number> {
         return this.dbService.saveXtreamContent(
             playlistId,
-            streams,
+            streams as Parameters<DatabaseService['saveXtreamContent']>[1],
             type,
             onProgress,
             options
@@ -449,6 +449,18 @@ export class ElectronXtreamDataSource implements IXtreamDataSource {
             xtreamId,
             playlistId,
             contentType
+        );
+    }
+
+    async setContentBackdropIfMissing(
+        contentId: number,
+        playlistId: string,
+        backdropUrl: string
+    ): Promise<void> {
+        void playlistId;
+        await this.dbService.setContentBackdropIfMissing(
+            contentId,
+            backdropUrl
         );
     }
 

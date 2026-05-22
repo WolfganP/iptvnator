@@ -9,6 +9,7 @@ import { StorageMap } from '@ngx-pwa/local-storage';
 import { TranslateModule } from '@ngx-translate/core';
 import { of } from 'rxjs';
 import { VideoPlayer } from '@iptvnator/shared/interfaces';
+import { RuntimeCapabilitiesService } from '@iptvnator/services';
 import type { WebPlayerViewComponent as WebPlayerViewComponentInstance } from './web-player-view.component';
 import {
     PlaybackDiagnostic,
@@ -79,7 +80,7 @@ describe('WebPlayerViewComponent', () => {
     const storageMap = {
         get: jest.fn(() => of({ player: VideoPlayer.VideoJs })),
     };
-    const originalElectron = window.electron;
+    let runtimeCapabilities: { supportsManagedExternalPlayers: boolean };
 
     beforeAll(async () => {
         ({ WebPlayerViewComponent } =
@@ -87,9 +88,17 @@ describe('WebPlayerViewComponent', () => {
     });
 
     beforeEach(async () => {
+        runtimeCapabilities = { supportsManagedExternalPlayers: false };
+
         await TestBed.configureTestingModule({
             imports: [WebPlayerViewComponent, TranslateModule.forRoot()],
-            providers: [{ provide: StorageMap, useValue: storageMap }],
+            providers: [
+                { provide: StorageMap, useValue: storageMap },
+                {
+                    provide: RuntimeCapabilitiesService,
+                    useValue: runtimeCapabilities,
+                },
+            ],
         })
             .overrideComponent(WebPlayerViewComponent, {
                 set: {
@@ -119,7 +128,6 @@ describe('WebPlayerViewComponent', () => {
     });
 
     afterEach(() => {
-        window.electron = originalElectron;
         fixture.destroy();
     });
 
@@ -129,17 +137,9 @@ describe('WebPlayerViewComponent', () => {
         expect(fixture.nativeElement.classList).toContain('web-player-view');
     });
 
-    it('renders diagnostics and emits MPV fallback requests on desktop', () => {
+    it('renders diagnostics and emits MPV fallback requests when managed external players are available', () => {
         const requests: unknown[] = [];
-        fixture.destroy();
-        window.electron = {} as typeof window.electron;
-        fixture = TestBed.createComponent(WebPlayerViewComponent);
-        component = fixture.componentInstance;
-        fixture.componentRef.setInput(
-            'streamUrl',
-            'https://example.com/archive/movie.mkv'
-        );
-        fixture.componentRef.setInput('title', 'Example Movie');
+        runtimeCapabilities.supportsManagedExternalPlayers = true;
         component.externalFallbackRequested.subscribe((request) =>
             requests.push(request)
         );
@@ -236,7 +236,10 @@ describe('WebPlayerViewComponent', () => {
 
     it('preserves playback HTTP metadata for channel-based players', () => {
         const streamUrl = 'https://example.com/live/channel.m3u8';
-        fixture.componentRef.setInput('playerOverride', VideoPlayer.Html5Player);
+        fixture.componentRef.setInput(
+            'playerOverride',
+            VideoPlayer.Html5Player
+        );
         fixture.componentRef.setInput('playback', {
             streamUrl,
             title: 'Header Locked Channel',
@@ -270,7 +273,10 @@ describe('WebPlayerViewComponent', () => {
 
     it('falls back to playback headers when explicit HTTP metadata is absent', () => {
         const streamUrl = 'https://example.com/live/channel.m3u8';
-        fixture.componentRef.setInput('playerOverride', VideoPlayer.Html5Player);
+        fixture.componentRef.setInput(
+            'playerOverride',
+            VideoPlayer.Html5Player
+        );
         fixture.componentRef.setInput('playback', {
             streamUrl,
             title: 'Header Fallback Channel',
@@ -297,12 +303,21 @@ describe('WebPlayerViewComponent', () => {
         );
     });
 
-    it('uses browser access diagnostic translation keys', () => {
+    it('uses the PWA browser access diagnostic description key outside desktop', () => {
         const issue = createBrowserAccessDiagnostic();
 
         expect(component.getDiagnosticTitleKey(issue)).toBe(
             'PLAYBACK_DIAGNOSTICS.BROWSER_ACCESS_ERROR.TITLE'
         );
+        expect(component.getDiagnosticDescriptionKey(issue)).toBe(
+            'PLAYBACK_DIAGNOSTICS.BROWSER_ACCESS_ERROR.PWA_DESCRIPTION'
+        );
+    });
+
+    it('keeps the desktop browser access diagnostic description key', () => {
+        runtimeCapabilities.supportsManagedExternalPlayers = true;
+        const issue = createBrowserAccessDiagnostic();
+
         expect(component.getDiagnosticDescriptionKey(issue)).toBe(
             'PLAYBACK_DIAGNOSTICS.BROWSER_ACCESS_ERROR.DESCRIPTION'
         );

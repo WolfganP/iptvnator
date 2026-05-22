@@ -29,6 +29,7 @@ import {
     EpgChannelWithPrograms,
     EpgProgram,
 } from '@iptvnator/shared/interfaces';
+import { RuntimeCapabilitiesService } from '@iptvnator/services';
 import { EpgItemDescriptionComponent } from '../epg-list/epg-item-description/epg-item-description.component';
 import { COMPONENT_OVERLAY_REF } from './overlay-ref.token';
 
@@ -52,6 +53,13 @@ interface ProgramSearchResult extends EpgProgram {
     channelName?: string | null;
     channel_name?: string | null;
     display_name?: string | null;
+}
+
+export function isSelectedEpgDayToday(
+    selectedDay: string,
+    now: Date = new Date()
+): boolean {
+    return selectedDay === format(now, 'yyyyMMdd');
 }
 
 @Component({
@@ -145,6 +153,19 @@ export class MultiEpgContainerComponent
         return (now.getHours() + now.getMinutes() / 60) * this.hourWidth();
     });
 
+    // "16:32"-style label rendered as a badge above the now-line. Recomputes
+    // on the same 60-second tick that drives `currentTimeLine` (both depend
+    // on hourWidth's update pulse from `ngOnInit`).
+    readonly currentTimeLabel = computed(() => {
+        // Subscribe to the same tick source as currentTimeLine.
+        this.hourWidth();
+        const now = new Date();
+        return `${now.getHours().toString().padStart(2, '0')}:${now
+            .getMinutes()
+            .toString()
+            .padStart(2, '0')}`;
+    });
+
     // Constants
     readonly timeHeader = Array.from({ length: 24 }, (_, i) => i);
     readonly barHeight = 50;
@@ -161,6 +182,7 @@ export class MultiEpgContainerComponent
 
     private readonly dialog = inject(MatDialog);
     private readonly overlayRef = inject<OverlayRef>(COMPONENT_OVERLAY_REF);
+    private readonly runtime = inject(RuntimeCapabilitiesService);
 
     ngOnInit() {
         // Update current time line every minute
@@ -228,9 +250,27 @@ export class MultiEpgContainerComponent
         return `${program.start}|${program?.title?.toString() ?? ''}`;
     }
 
+    /**
+     * Returns true when the now-line falls within this program's rendered
+     * span — used to add a `.is-now` class so the cyan border lights up
+     * every airing program at once. The template reads `currentTimeLine()`
+     * (a signal) here so the highlight refreshes on the same 60-second tick
+     * as the line itself.
+     */
+    isProgramAiringNow(program: EnrichedProgram): boolean {
+        const nowX = this.currentTimeLine();
+        if (!isSelectedEpgDayToday(this.today())) {
+            return false;
+        }
+        return (
+            nowX >= program.startPosition &&
+            nowX <= program.startPosition + program.width
+        );
+    }
+
     async requestPrograms(): Promise<void> {
-        if (!window.electron) {
-            console.warn('Multi-EPG not available: Electron not detected');
+        if (!this.runtime.supportsEpg) {
+            console.warn('Multi-EPG not available in this runtime');
             return;
         }
 
@@ -417,6 +457,12 @@ export class MultiEpgContainerComponent
         }
 
         if (query.length < 2) {
+            this.programSearchResults.set([]);
+            this.isSearchingPrograms.set(false);
+            return;
+        }
+
+        if (!this.runtime.supportsEpg) {
             this.programSearchResults.set([]);
             this.isSearchingPrograms.set(false);
             return;

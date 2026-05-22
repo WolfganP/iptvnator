@@ -7,7 +7,10 @@ import {
     withState,
 } from '@ngrx/signals';
 import { EpgItem } from '@iptvnator/shared/interfaces';
-import { DataService, SettingsStore } from '@iptvnator/services';
+import {
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import {
     XtreamApiService,
     XtreamCredentials,
@@ -58,14 +61,8 @@ export function withEpg() {
                 const now = Date.now();
                 const items = [...store.epgItems()].sort(
                     (left, right) =>
-                        getEpgTimestampMs(
-                            left.start,
-                            left.start_timestamp
-                        ) -
-                        getEpgTimestampMs(
-                            right.start,
-                            right.start_timestamp
-                        )
+                        getEpgTimestampMs(left.start, left.start_timestamp) -
+                        getEpgTimestampMs(right.start, right.start_timestamp)
                 );
 
                 return (
@@ -86,9 +83,11 @@ export function withEpg() {
 
         withMethods((store) => {
             const apiService = inject(XtreamApiService);
-            const dataService = inject(DataService);
             const fallbackService = inject(XtreamXmltvFallbackService);
+            const runtime = inject(RuntimeCapabilitiesService);
             const settingsStore = inject(SettingsStore);
+
+            const supportsEpg = (): boolean => runtime.supportsEpg;
 
             /**
              * Helper to get credentials from parent store
@@ -115,13 +114,9 @@ export function withEpg() {
                 credentials: XtreamCredentials,
                 xtreamId: number
             ): Promise<EpgItem[]> =>
-                dataService.isElectron
-                    ? apiService.getFullEpg(credentials, xtreamId, {
-                          suppressErrorLog: true,
-                      })
-                    : apiService.getShortEpg(credentials, xtreamId, 10, {
-                          suppressErrorLog: true,
-                      });
+                apiService.getFullEpg(credentials, xtreamId, {
+                    suppressErrorLog: true,
+                });
 
             return {
                 /**
@@ -132,6 +127,14 @@ export function withEpg() {
                  * sets `preferUploadedEpgOverXtream`.
                  */
                 async loadEpg(): Promise<EpgItem[]> {
+                    if (!supportsEpg()) {
+                        patchState(store, {
+                            epgItems: [],
+                            isLoadingEpg: false,
+                        });
+                        return [];
+                    }
+
                     const credentials = getCredentialsFromStore();
                     if (!credentials) {
                         patchState(store, { epgItems: [] });
@@ -180,6 +183,10 @@ export function withEpg() {
                     streamId: number,
                     epgChannelId?: string | null
                 ): Promise<EpgItem[]> {
+                    if (!supportsEpg()) {
+                        return [];
+                    }
+
                     const credentials = getCredentialsFromStore();
                     if (!credentials) return [];
 

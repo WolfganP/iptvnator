@@ -16,7 +16,11 @@ import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { ChannelListItemComponent } from '@iptvnator/ui/components';
 import { MockPipe } from 'ng-mocks';
 import { of } from 'rxjs';
-import { PlaylistsService, SettingsStore } from '@iptvnator/services';
+import {
+    PlaylistsService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import { EpgProgram } from '@iptvnator/shared/interfaces';
 import { WebPlayerViewComponent } from '@iptvnator/ui/playback';
 import {
@@ -234,8 +238,16 @@ describe('StalkerLiveStreamLayoutComponent', () => {
     const settingsStore = {
         openStreamOnDoubleClick: signal(false),
     };
+    const originalElectron = window.electron;
 
     beforeEach(async () => {
+        window.electron = {
+            platform: 'darwin',
+            updateRemoteControlStatus: jest.fn(),
+            onChannelChange: jest.fn(() => jest.fn()),
+            onRemoteControlCommand: jest.fn(() => jest.fn()),
+        } as typeof window.electron;
+
         fetchChannelEpg = stalkerStore.fetchChannelEpg;
         ensureBulkItvEpg = stalkerStore.ensureBulkItvEpg;
         resolveItvPlayback = stalkerStore.resolveItvPlayback;
@@ -303,6 +315,17 @@ describe('StalkerLiveStreamLayoutComponent', () => {
             imports: [StalkerLiveStreamLayoutComponent, NoopAnimationsModule],
             providers: [
                 { provide: StalkerStore, useValue: stalkerStore },
+                {
+                    provide: RuntimeCapabilitiesService,
+                    useValue: {
+                        get supportsEpg() {
+                            return Boolean(window.electron);
+                        },
+                        get isElectron() {
+                            return Boolean(window.electron);
+                        },
+                    },
+                },
                 { provide: PlaylistsService, useValue: playlistService },
                 { provide: SettingsStore, useValue: settingsStore },
                 { provide: PORTAL_PLAYER, useValue: portalPlayer },
@@ -358,6 +381,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
     afterEach(() => {
         fixture?.destroy();
         localStorage.removeItem(LIVE_EPG_PANEL_STATE_STORAGE_KEY);
+        window.electron = originalElectron;
     });
 
     it('renders the controlled epg list and removes the load-more button', () => {
@@ -368,6 +392,29 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         ).not.toBeNull();
         expect(
             fixture.nativeElement.querySelector('.load-more-epg')
+        ).toBeNull();
+    });
+
+    it('does not request or render EPG in browser/PWA playback', async () => {
+        fixture.destroy();
+        window.electron = undefined as unknown as typeof window.electron;
+
+        fixture = TestBed.createComponent(StalkerLiveStreamLayoutComponent);
+        component = fixture.componentInstance;
+
+        await component.playChannel(itvChannels()[0]);
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(ensureBulkItvEpg).not.toHaveBeenCalled();
+        expect(fetchChannelEpg).not.toHaveBeenCalled();
+        expect(
+            fixture.nativeElement.querySelector('app-web-player-view')
+        ).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.epg')).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-epg-list')).toBeNull();
+        expect(
+            fixture.nativeElement.querySelector('app-live-epg-panel')
         ).toBeNull();
     });
 
@@ -459,6 +506,20 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         await component.playChannel(itvChannels()[0]);
 
         expect(finallySpy).not.toHaveBeenCalled();
+    });
+
+    it('does not publish remote-control status when the bridge is incomplete', () => {
+        fixture.destroy();
+        const updateRemoteControlStatus = jest.fn();
+        window.electron = {
+            updateRemoteControlStatus,
+        } as typeof window.electron;
+
+        fixture = TestBed.createComponent(StalkerLiveStreamLayoutComponent);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        expect(updateRemoteControlStatus).not.toHaveBeenCalled();
     });
 
     it('starts external playback from remote channel navigation when double-click opening is enabled', async () => {

@@ -128,6 +128,19 @@
             "AUTO_REFRESH_UPDATE_SUCCESS": "Succès ! Les listes de lecture ont été mises à jour avec succès",
             "AUTO_REFRESH_ENABLED": "Actualisation automatique activée"
         },
+        "ADD_PLAYLIST": {
+            "PICK_METHOD": "Choisissez comment vous souhaitez vous connecter. Vous pourrez renommer la liste plus tard.",
+            "METHOD_URL_LABEL": "URL M3U",
+            "METHOD_URL_SUB": "Collez un lien vers un fichier .m3u ou .m3u8 distant",
+            "METHOD_FILE_LABEL": "Fichier M3U",
+            "METHOD_FILE_SUB": "Téléversez une liste de lecture depuis votre ordinateur",
+            "METHOD_XTREAM_LABEL": "Identifiants Xtream",
+            "METHOD_XTREAM_SUB": "Connectez-vous avec hôte, nom d'utilisateur et mot de passe",
+            "METHOD_STALKER_LABEL": "Portail Stalker",
+            "METHOD_STALKER_SUB": "Adresse MAC et URL du portail",
+            "METHOD_TEXT_LABEL": "Texte m3u brut",
+            "METHOD_TEXT_SUB": "Pour les listes ponctuelles ou quand vous n'avez que du texte"
+        },
         "FILE_UPLOAD": {
             "DRAG_DROP": "Glissez un fichier ici",
             "OR": "ou",
@@ -362,18 +375,27 @@
         "PLAYLISTS_REMOVE_FAILED": "Could not delete playlists. Please try again."
     },
     "THEMES": {
-        "DARK_THEME": "Thème foncé",
-        "LIGHT_THEME": "Thème clair",
-        "SYSTEM_THEME": "Thème du système"
+        "DARK_THEME": "Sombre",
+        "LIGHT_THEME": "Clair",
+        "SYSTEM_THEME": "Système"
+    },
+    "AUDIO_PLAYER": {
+        "PLAY": "Lecture",
+        "PAUSE": "Pause",
+        "PREVIOUS_STATION": "Station précédente",
+        "NEXT_STATION": "Station suivante",
+        "MUTE": "Muet",
+        "UNMUTE": "Activer le son",
+        "VOLUME": "Volume"
     },
     "PLAYBACK_DIAGNOSTICS": {
         "UNSUPPORTED_CONTAINER": {
             "TITLE": "This stream container is likely unsupported by the browser player",
-            "DESCRIPTION": "Chromium/Electron may not decode this container inline. Try MPV or VLC for broader codec support."
+            "DESCRIPTION": "The browser player may not decode this container inline. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA for broader codec support."
         },
         "UNSUPPORTED_CODEC": {
             "TITLE": "This stream codec is likely unsupported by the browser player",
-            "DESCRIPTION": "The stream advertises codecs that the built-in Chromium player may not decode. MPV or VLC can often play it."
+            "DESCRIPTION": "The stream advertises codecs that the browser player may not decode. Copy the stream URL and open it in an external player such as MPV, VLC, or IINA."
         },
         "MEDIA_DECODE_ERROR": {
             "TITLE": "The browser player could not decode this stream",
@@ -385,7 +407,8 @@
         },
         "BROWSER_ACCESS_ERROR": {
             "TITLE": "The browser player could not access this stream",
-            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits."
+            "DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. MPV or VLC can often bypass browser-player access limits.",
+            "PWA_DESCRIPTION": "The request may be blocked by CORS, mixed content, or provider header/proxy restrictions. The PWA cannot launch external players directly; use the Copy stream URL action and open it manually in MPV, VLC, IINA, or another player."
         },
         "DRM_OR_ENCRYPTION": {
             "TITLE": "This stream may be encrypted or DRM-protected",
@@ -396,7 +419,7 @@
             "DESCRIPTION": "The stream failed in the built-in player, but the error did not identify a specific codec, container, or network cause."
         },
         "NATIVE_FALLBACK_TITLE": "Open it in a native player instead",
-        "INLINE_FAILURE_TITLE": "Check the stream or try again",
+        "INLINE_FAILURE_TITLE": "Copy the URL or try again",
         "ACTION_OPEN_MPV": "Open in MPV",
         "ACTION_OPEN_VLC": "Open in VLC",
         "ACTION_OPEN_MPV_HINT": "configured player",
@@ -506,6 +529,12 @@
         "TITLE": "Guide électronique des programmes",
         "NEXT_DAY": "Jour suivant",
         "PREVIOUS_DAY": "Jour précédent",
+        "ZOOM_IN": "Zoom avant",
+        "ZOOM_OUT": "Zoom arrière",
+        "FILTER_CHANNELS": "Filtrer les chaînes",
+        "CLOSE_FILTER": "Fermer le filtre",
+        "SEARCH_PROGRAMS": "Rechercher des programmes",
+        "CLOSE_PROGRAM_SEARCH": "Fermer la recherche de programmes",
         "LIVE_NOW": "En direct",
         "LIVE_STREAM": "Diffusion en direct",
         "TIMESHIFT_AVAILABLE": "Contrôle du direct disponible, cliquez pour lire",
@@ -823,11 +852,20 @@
         "CATEGORY_SORT_ARIA": "Trier les catégories",
         "DASHBOARD": {
             "CONTINUE_WATCHING": "Reprendre la lecture",
+            "LIVE_FAVORITES": "En direct sur vos favoris",
+            "LIVE_RECENT": "Reprendre la TV en direct",
+            "REMAINING_SECONDS": "Il reste {{seconds}} s",
+            "REMAINING_MINUTES": "Il reste {{minutes}} min",
+            "REMAINING_HOURS": "Il reste {{hours}} h",
+            "REMAINING_HOURS_MINUTES": "Il reste {{hours}} h {{minutes}} min",
+            "PERCENT_WATCHED": "{{value}}% regardé",
             "UNTITLED_SOURCE": "Source sans titre",
             "GLOBAL_FAVORITES": "Favoris globaux",
             "REMOVE_FROM_HISTORY": "Retirer de l'historique",
             "RECENT_SOURCES": "Sources récemment utilisées",
             "MANAGE_ALL": "Tout gérer",
+            "SEE_ALL": "Voir tout",
+            "SEE_ALL_COUNT": "Voir les {{count}}",
             "RECENTLY_WATCHED": "Récemment regardés",
             "XTREAM_RECENTLY_ADDED": "Récemment ajoutés sur Xtream",
             "NO_HISTORY": "Aucun élément trouvé pour ce filtre.",
@@ -840,6 +878,7 @@
             "TYPE_LIVE": "Direct",
             "TYPE_MOVIE": "Film",
             "TYPE_SERIES": "Série",
+            "SEASON_EPISODE_BADGE": "S{{season}}·E{{episode}}",
             "NOT_YET_SYNCED": "Pas encore synchronisé"
         },
         "SHELL": {
@@ -1018,6 +1057,41 @@
             "GROUP_VIEW": "Vue actuelle",
             "GROUP_SECTION": "Cette section",
             "GROUP_RECENT": "Récemment utilisées"
+        },
+        "SHORTCUTS": {
+            "TITLE": "Keyboard shortcuts",
+            "SUBTITLE": "Workspace, navigation, playback, and dialog shortcuts available in IPTVnator.",
+            "OPEN_TOOLTIP": "Keyboard shortcuts (?)",
+            "OPEN_ARIA": "Open keyboard shortcuts",
+            "PLATFORM": {
+                "MAC": "macOS layout",
+                "OTHER": "Windows/Linux layout"
+            },
+            "GROUPS": {
+                "GLOBAL": "Global",
+                "NAVIGATION": "Navigation",
+                "PLAYBACK": "Playback",
+                "DIALOGS": "Dialogs and lists"
+            },
+            "ITEMS": {
+                "OPEN_KEYBOARD_SHORTCUTS": "Open this shortcuts list",
+                "OPEN_COMMAND_PALETTE": "Open command palette",
+                "OPEN_GLOBAL_SEARCH": "Open global search",
+                "OPEN_RECENTLY_VIEWED": "Open recently viewed",
+                "SUBMIT_SHELL_SEARCH": "Submit workspace search",
+                "TOGGLE_SIDEBAR": "Toggle sidebar",
+                "M3U_CHANNEL_NUMBER": "Select M3U channel by number",
+                "PLAY_PAUSE": "Play or pause embedded MPV playback",
+                "TOGGLE_FULLSCREEN": "Toggle embedded MPV fullscreen",
+                "SEEK": "Seek embedded MPV playback by 5 seconds",
+                "ADJUST_VOLUME": "Adjust volume by 5%",
+                "MUTE_AUDIO": "Mute audio",
+                "CLOSE_PLAYER_POPOVERS": "Close embedded MPV popovers",
+                "COMMAND_PALETTE_NAVIGATION": "Move command palette selection",
+                "COMMAND_PALETTE_RUN": "Run selected command palette item",
+                "CLOSE_DIALOGS": "Close dialog or dismiss overlay",
+                "DOWNLOADS_OPEN_ITEM": "Open focused download item in the library"
+            }
         },
         "GLOBAL_FAVORITES": {
             "TITLE": "Favoris globaux",

@@ -128,6 +128,19 @@
             "AUTO_REFRESH_UPDATE_SUCCESS": "Успешно! Плейлисты были успешно обновлены",
             "AUTO_REFRESH_ENABLED": "Автообновление включено"
         },
+        "ADD_PLAYLIST": {
+            "PICK_METHOD": "Выберите способ подключения. Переименовать плейлист можно позже.",
+            "METHOD_URL_LABEL": "M3U URL",
+            "METHOD_URL_SUB": "Вставьте ссылку на удалённый файл .m3u или .m3u8",
+            "METHOD_FILE_LABEL": "Файл M3U",
+            "METHOD_FILE_SUB": "Загрузите плейлист с вашего компьютера",
+            "METHOD_XTREAM_LABEL": "Учётные данные Xtream",
+            "METHOD_XTREAM_SUB": "Подключение через сервер, имя пользователя и пароль",
+            "METHOD_STALKER_LABEL": "Stalker портал",
+            "METHOD_STALKER_SUB": "MAC-адрес и URL портала",
+            "METHOD_TEXT_LABEL": "M3U текстом",
+            "METHOD_TEXT_SUB": "Для разовых плейлистов или когда есть только текст"
+        },
         "FILE_UPLOAD": {
             "DRAG_DROP": "Перетащите файл в эту область",
             "OR": "или",
@@ -362,18 +375,27 @@
         "PLAYLISTS_REMOVE_FAILED": "Could not delete playlists. Please try again."
     },
     "THEMES": {
-        "DARK_THEME": "Тёмная тема",
-        "LIGHT_THEME": "Светлая тема",
-        "SYSTEM_THEME": "Системная тема"
+        "DARK_THEME": "Тёмная",
+        "LIGHT_THEME": "Светлая",
+        "SYSTEM_THEME": "Системная"
+    },
+    "AUDIO_PLAYER": {
+        "PLAY": "Воспроизвести",
+        "PAUSE": "Пауза",
+        "PREVIOUS_STATION": "Предыдущая станция",
+        "NEXT_STATION": "Следующая станция",
+        "MUTE": "Отключить звук",
+        "UNMUTE": "Включить звук",
+        "VOLUME": "Громкость"
     },
     "PLAYBACK_DIAGNOSTICS": {
         "UNSUPPORTED_CONTAINER": {
             "TITLE": "Контейнер потока, вероятно, не поддерживается встроенным браузерным плеером",
-            "DESCRIPTION": "Chromium/Electron может не воспроизводить этот контейнер внутри приложения. Попробуйте MPV или VLC с более широкой поддержкой кодеков."
+            "DESCRIPTION": "Браузерный плеер может не декодировать этот контейнер внутри приложения. Скопируйте URL потока и откройте его во внешнем плеере, например MPV, VLC или IINA."
         },
         "UNSUPPORTED_CODEC": {
             "TITLE": "Кодек потока, вероятно, не поддерживается встроенным браузерным плеером",
-            "DESCRIPTION": "Поток сообщает кодеки, которые встроенный Chromium-плеер может не декодировать. MPV или VLC часто справляются с такими потоками."
+            "DESCRIPTION": "Поток сообщает кодеки, которые браузерный плеер может не декодировать. Скопируйте URL потока и откройте его во внешнем плеере, например MPV, VLC или IINA."
         },
         "MEDIA_DECODE_ERROR": {
             "TITLE": "Браузерный плеер не смог декодировать этот поток",
@@ -385,7 +407,8 @@
         },
         "BROWSER_ACCESS_ERROR": {
             "TITLE": "Браузерный плеер не получил доступ к потоку",
-            "DESCRIPTION": "Запрос может быть заблокирован CORS, mixed content или требованиями провайдера/прокси к заголовкам. MPV или VLC часто обходят такие ограничения браузерного плеера."
+            "DESCRIPTION": "Запрос может быть заблокирован CORS, mixed content или требованиями провайдера/прокси к заголовкам. MPV или VLC часто обходят такие ограничения браузерного плеера.",
+            "PWA_DESCRIPTION": "Запрос может быть заблокирован CORS, mixed content или требованиями провайдера/прокси к заголовкам. PWA не может запускать внешние плееры напрямую: нажмите «Скопировать URL потока» и откройте его вручную в MPV, VLC, IINA или другом плеере."
         },
         "DRM_OR_ENCRYPTION": {
             "TITLE": "Поток может быть зашифрован или защищен DRM",
@@ -396,12 +419,12 @@
             "DESCRIPTION": "Поток не воспроизвелся во встроенном плеере, но ошибка не указала конкретную причину в кодеке, контейнере или сети."
         },
         "NATIVE_FALLBACK_TITLE": "Откройте поток во внешнем плеере",
-        "INLINE_FAILURE_TITLE": "Проверьте поток или повторите попытку",
+        "INLINE_FAILURE_TITLE": "Скопируйте URL или повторите попытку",
         "ACTION_OPEN_MPV": "Открыть в MPV",
         "ACTION_OPEN_VLC": "Открыть в VLC",
         "ACTION_OPEN_MPV_HINT": "настроенный плеер",
         "ACTION_OPEN_VLC_HINT": "настроенный плеер",
-        "ACTION_COPY_URL": "Скопировать URL",
+        "ACTION_COPY_URL": "Скопировать URL потока",
         "ACTION_RETRY": "Повторить",
         "DETAILS_SUMMARY": "Технические сведения",
         "CODEC_HINT": "Обнаружены {{codecs}}. Браузерные плееры Chromium/Electron часто имеют ограниченную поддержку этих кодеков.",
@@ -506,6 +529,12 @@
         "TITLE": "Электронный программный гид",
         "NEXT_DAY": "Следующий день",
         "PREVIOUS_DAY": "Предыдущий день",
+        "ZOOM_IN": "Увеличить",
+        "ZOOM_OUT": "Уменьшить",
+        "FILTER_CHANNELS": "Фильтровать каналы",
+        "CLOSE_FILTER": "Закрыть фильтр",
+        "SEARCH_PROGRAMS": "Поиск программ",
+        "CLOSE_PROGRAM_SEARCH": "Закрыть поиск программ",
         "LIVE_NOW": "Сейчас",
         "LIVE_STREAM": "Прямая трансляция",
         "TIMESHIFT_AVAILABLE": "Доступна функция архива (timeshift). Нажмите на передачу для воспроизведения.",
@@ -823,11 +852,20 @@
         "CATEGORY_SORT_ARIA": "Сортировать категории",
         "DASHBOARD": {
             "CONTINUE_WATCHING": "Продолжить просмотр",
+            "LIVE_FAVORITES": "Сейчас в эфире на избранных каналах",
+            "LIVE_RECENT": "Продолжить просмотр прямого эфира",
+            "REMAINING_SECONDS": "Осталось {{seconds}} с",
+            "REMAINING_MINUTES": "Осталось {{minutes}} мин",
+            "REMAINING_HOURS": "Осталось {{hours}} ч",
+            "REMAINING_HOURS_MINUTES": "Осталось {{hours}} ч {{minutes}} мин",
+            "PERCENT_WATCHED": "Просмотрено {{value}}%",
             "UNTITLED_SOURCE": "Источник без названия",
             "GLOBAL_FAVORITES": "Глобальные избранные",
             "REMOVE_FROM_HISTORY": "Удалить из истории",
             "RECENT_SOURCES": "Недавно использованные источники",
             "MANAGE_ALL": "Управлять всем",
+            "SEE_ALL": "Смотреть все",
+            "SEE_ALL_COUNT": "Смотреть все {{count}}",
             "RECENTLY_WATCHED": "Недавно просмотренные",
             "XTREAM_RECENTLY_ADDED": "Недавно добавленные на Xtream",
             "NO_HISTORY": "Для этого фильтра элементы не найдены.",
@@ -840,6 +878,7 @@
             "TYPE_LIVE": "ТВ",
             "TYPE_MOVIE": "Фильм",
             "TYPE_SERIES": "Сериал",
+            "SEASON_EPISODE_BADGE": "С{{season}}·Э{{episode}}",
             "NOT_YET_SYNCED": "Еще не синхронизировано"
         },
         "SHELL": {
@@ -1018,6 +1057,41 @@
             "GROUP_VIEW": "Текущее представление",
             "GROUP_SECTION": "Этот раздел",
             "GROUP_RECENT": "Недавно использованные"
+        },
+        "SHORTCUTS": {
+            "TITLE": "Keyboard shortcuts",
+            "SUBTITLE": "Workspace, navigation, playback, and dialog shortcuts available in IPTVnator.",
+            "OPEN_TOOLTIP": "Keyboard shortcuts (?)",
+            "OPEN_ARIA": "Open keyboard shortcuts",
+            "PLATFORM": {
+                "MAC": "macOS layout",
+                "OTHER": "Windows/Linux layout"
+            },
+            "GROUPS": {
+                "GLOBAL": "Global",
+                "NAVIGATION": "Navigation",
+                "PLAYBACK": "Playback",
+                "DIALOGS": "Dialogs and lists"
+            },
+            "ITEMS": {
+                "OPEN_KEYBOARD_SHORTCUTS": "Open this shortcuts list",
+                "OPEN_COMMAND_PALETTE": "Open command palette",
+                "OPEN_GLOBAL_SEARCH": "Open global search",
+                "OPEN_RECENTLY_VIEWED": "Open recently viewed",
+                "SUBMIT_SHELL_SEARCH": "Submit workspace search",
+                "TOGGLE_SIDEBAR": "Toggle sidebar",
+                "M3U_CHANNEL_NUMBER": "Select M3U channel by number",
+                "PLAY_PAUSE": "Play or pause embedded MPV playback",
+                "TOGGLE_FULLSCREEN": "Toggle embedded MPV fullscreen",
+                "SEEK": "Seek embedded MPV playback by 5 seconds",
+                "ADJUST_VOLUME": "Adjust volume by 5%",
+                "MUTE_AUDIO": "Mute audio",
+                "CLOSE_PLAYER_POPOVERS": "Close embedded MPV popovers",
+                "COMMAND_PALETTE_NAVIGATION": "Move command palette selection",
+                "COMMAND_PALETTE_RUN": "Run selected command palette item",
+                "CLOSE_DIALOGS": "Close dialog or dismiss overlay",
+                "DOWNLOADS_OPEN_ITEM": "Open focused download item in the library"
+            }
         },
         "GLOBAL_FAVORITES": {
             "TITLE": "Глобальные избранные",
