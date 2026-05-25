@@ -8,6 +8,16 @@ type RuntimeWindow = Window & {
     electron?: RuntimeElectronBridge;
 };
 
+const playbackPositionStorageMethods = [
+    'dbSavePlaybackPosition',
+    'dbGetPlaybackPosition',
+    'dbGetSeriesPlaybackPositions',
+    'dbGetRecentPlaybackPositions',
+    'dbGetAllPlaybackPositions',
+    'dbClearAllPlaybackPositions',
+    'dbClearPlaybackPosition',
+];
+
 @Injectable({ providedIn: 'root' })
 export class RuntimeCapabilitiesService {
     get environment(): RuntimeEnvironment {
@@ -32,15 +42,53 @@ export class RuntimeCapabilitiesService {
     }
 
     get supportsEpg(): boolean {
-        return [
-            'fetchEpg',
-            'getChannelPrograms',
-            'checkEpgFreshness',
-            'forceFetchEpg',
-            'clearEpgData',
-            'getEpgChannelsByRange',
-            'searchEpgPrograms',
-        ].every((methodName) => this.hasElectronMethod(methodName));
+        return (
+            this.supportsEpgImport &&
+            this.supportsEpgProgramLookup &&
+            this.supportsEpgSourceFreshness &&
+            this.supportsEpgDataManagement &&
+            this.supportsEpgChannelBrowser &&
+            this.supportsEpgProgramSearch
+        );
+    }
+
+    get supportsEpgImport(): boolean {
+        return this.hasElectronMethod('fetchEpg');
+    }
+
+    get supportsEpgProgress(): boolean {
+        return this.hasElectronMethod('onEpgProgress');
+    }
+
+    get supportsEpgProgramLookup(): boolean {
+        return this.hasElectronMethod('getChannelPrograms');
+    }
+
+    get supportsEpgCurrentProgramBatch(): boolean {
+        return this.hasElectronMethod('getCurrentProgramsBatch');
+    }
+
+    get supportsEpgChannelMetadata(): boolean {
+        return this.hasElectronMethod('getEpgChannelMetadata');
+    }
+
+    get supportsEpgSourceFreshness(): boolean {
+        return this.hasElectronMethod('checkEpgFreshness');
+    }
+
+    get supportsEpgDataManagement(): boolean {
+        return (
+            this.hasElectronMethod('forceFetchEpg') &&
+            this.hasElectronMethod('clearEpgData')
+        );
+    }
+
+    get supportsEpgChannelBrowser(): boolean {
+        return this.hasElectronMethod('getEpgChannelsByRange');
+    }
+
+    get supportsEpgProgramSearch(): boolean {
+        return this.hasElectronMethod('searchEpgPrograms');
     }
 
     get supportsSqlite(): boolean {
@@ -82,16 +130,20 @@ export class RuntimeCapabilitiesService {
             'dbRemoveRecentItem',
             'dbClearPlaylistRecentItems',
             'dbGetContentByXtreamId',
-            'dbSavePlaybackPosition',
-            'dbGetPlaybackPosition',
-            'dbGetSeriesPlaybackPositions',
-            'dbGetRecentPlaybackPositions',
-            'dbGetAllPlaybackPositions',
-            'dbClearAllPlaybackPositions',
-            'dbClearPlaybackPosition',
+            ...playbackPositionStorageMethods,
             'dbDeleteXtreamContent',
             'dbRestoreXtreamUserData',
         ].every((methodName) => this.hasElectronMethod(methodName));
+    }
+
+    get supportsPlaybackPositionStorage(): boolean {
+        return playbackPositionStorageMethods.every((methodName) =>
+            this.hasElectronMethod(methodName)
+        );
+    }
+
+    get supportsPlaybackPositionUpdates(): boolean {
+        return this.hasElectronMethod('onPlaybackPositionUpdate');
     }
 
     get supportsDownloads(): boolean {

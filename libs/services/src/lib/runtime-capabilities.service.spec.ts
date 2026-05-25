@@ -25,6 +25,8 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsXtreamSqliteDataSource).toBe(false);
         expect(service.supportsDownloads).toBe(false);
         expect(service.supportsPortalActivityStorage).toBe(false);
+        expect(service.supportsPlaybackPositionStorage).toBe(false);
+        expect(service.supportsPlaybackPositionUpdates).toBe(false);
         expect(service.supportsAppStateStorage).toBe(false);
         expect(service.supportsStalkerPlaylistSqliteSync).toBe(false);
         expect(service.supportsPlaylistRefresh).toBe(false);
@@ -34,6 +36,15 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsDesktopFileSave).toBe(false);
         expect(service.supportsRemoteControl).toBe(false);
         expect(service.supportsXtreamSectionNavigation).toBe(true);
+        expect(service.supportsEpgImport).toBe(false);
+        expect(service.supportsEpgProgress).toBe(false);
+        expect(service.supportsEpgProgramLookup).toBe(false);
+        expect(service.supportsEpgCurrentProgramBatch).toBe(false);
+        expect(service.supportsEpgChannelMetadata).toBe(false);
+        expect(service.supportsEpgSourceFreshness).toBe(false);
+        expect(service.supportsEpgDataManagement).toBe(false);
+        expect(service.supportsEpgChannelBrowser).toBe(false);
+        expect(service.supportsEpgProgramSearch).toBe(false);
     });
 
     it('reports Electron capabilities from the available preload bridge methods', () => {
@@ -81,6 +92,7 @@ describe('RuntimeCapabilitiesService', () => {
             dbGetAllPlaybackPositions: jest.fn(),
             dbClearAllPlaybackPositions: jest.fn(),
             dbClearPlaybackPosition: jest.fn(),
+            onPlaybackPositionUpdate: jest.fn(),
             dbDeleteXtreamContent: jest.fn(),
             dbRestoreXtreamUserData: jest.fn(),
             downloadsStart: jest.fn(),
@@ -111,7 +123,10 @@ describe('RuntimeCapabilitiesService', () => {
             xtreamRequest: jest.fn(),
             fetchEpg: jest.fn(),
             getChannelPrograms: jest.fn(),
+            getCurrentProgramsBatch: jest.fn(),
+            getEpgChannelMetadata: jest.fn(),
             checkEpgFreshness: jest.fn(),
+            onEpgProgress: jest.fn(),
             forceFetchEpg: jest.fn(),
             clearEpgData: jest.fn(),
             getEpgChannelsByRange: jest.fn(),
@@ -130,6 +145,8 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsXtreamSqliteDataSource).toBe(true);
         expect(service.supportsDownloads).toBe(true);
         expect(service.supportsPortalActivityStorage).toBe(true);
+        expect(service.supportsPlaybackPositionStorage).toBe(true);
+        expect(service.supportsPlaybackPositionUpdates).toBe(true);
         expect(service.supportsAppStateStorage).toBe(true);
         expect(service.supportsStalkerPlaylistSqliteSync).toBe(true);
         expect(service.supportsPlaylistRefresh).toBe(true);
@@ -139,6 +156,15 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsDesktopFileSave).toBe(true);
         expect(service.supportsRemoteControl).toBe(true);
         expect(service.supportsXtreamSectionNavigation).toBe(true);
+        expect(service.supportsEpgImport).toBe(true);
+        expect(service.supportsEpgProgress).toBe(true);
+        expect(service.supportsEpgProgramLookup).toBe(true);
+        expect(service.supportsEpgCurrentProgramBatch).toBe(true);
+        expect(service.supportsEpgChannelMetadata).toBe(true);
+        expect(service.supportsEpgSourceFreshness).toBe(true);
+        expect(service.supportsEpgDataManagement).toBe(true);
+        expect(service.supportsEpgChannelBrowser).toBe(true);
+        expect(service.supportsEpgProgramSearch).toBe(true);
     });
 
     it('keeps feature-specific capabilities false when an Electron bridge is partial', () => {
@@ -156,6 +182,8 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsXtreamSqliteDataSource).toBe(false);
         expect(service.supportsDownloads).toBe(false);
         expect(service.supportsPortalActivityStorage).toBe(false);
+        expect(service.supportsPlaybackPositionStorage).toBe(false);
+        expect(service.supportsPlaybackPositionUpdates).toBe(false);
         expect(service.supportsAppStateStorage).toBe(false);
         expect(service.supportsStalkerPlaylistSqliteSync).toBe(false);
         expect(service.supportsPlaylistRefresh).toBe(false);
@@ -165,6 +193,15 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsDesktopFileSave).toBe(false);
         expect(service.supportsRemoteControl).toBe(false);
         expect(service.supportsXtreamSectionNavigation).toBe(false);
+        expect(service.supportsEpgImport).toBe(false);
+        expect(service.supportsEpgProgress).toBe(false);
+        expect(service.supportsEpgProgramLookup).toBe(false);
+        expect(service.supportsEpgCurrentProgramBatch).toBe(false);
+        expect(service.supportsEpgChannelMetadata).toBe(false);
+        expect(service.supportsEpgSourceFreshness).toBe(false);
+        expect(service.supportsEpgDataManagement).toBe(false);
+        expect(service.supportsEpgChannelBrowser).toBe(false);
+        expect(service.supportsEpgProgramSearch).toBe(false);
     });
 
     it('reads the bridge dynamically so tests and late preload setup stay accurate', () => {
@@ -275,6 +312,44 @@ describe('RuntimeCapabilitiesService', () => {
         expect(service.supportsEpg).toBe(true);
     });
 
+    it('exposes EPG capabilities by the specific preload surface they need', () => {
+        testWindow.electron = {
+            fetchEpg: jest.fn(),
+            onEpgProgress: jest.fn(),
+            getChannelPrograms: jest.fn(),
+            checkEpgFreshness: jest.fn(),
+            forceFetchEpg: jest.fn(),
+            clearEpgData: jest.fn(),
+            getEpgChannelsByRange: jest.fn(),
+            searchEpgPrograms: jest.fn(),
+        };
+
+        const service = new RuntimeCapabilitiesService();
+
+        expect(service.supportsEpg).toBe(true);
+        expect(service.supportsEpgImport).toBe(true);
+        expect(service.supportsEpgProgress).toBe(true);
+        expect(service.supportsEpgProgramLookup).toBe(true);
+        expect(service.supportsEpgCurrentProgramBatch).toBe(false);
+        expect(service.supportsEpgChannelMetadata).toBe(false);
+        expect(service.supportsEpgSourceFreshness).toBe(true);
+        expect(service.supportsEpgDataManagement).toBe(true);
+        expect(service.supportsEpgChannelBrowser).toBe(true);
+        expect(service.supportsEpgProgramSearch).toBe(true);
+
+        testWindow.electron = {
+            checkEpgFreshness: jest.fn(),
+        };
+
+        expect(service.supportsEpg).toBe(false);
+        expect(service.supportsEpgSourceFreshness).toBe(true);
+        expect(service.supportsEpgImport).toBe(false);
+        expect(service.supportsEpgProgramLookup).toBe(false);
+        expect(service.supportsEpgDataManagement).toBe(false);
+        expect(service.supportsEpgChannelBrowser).toBe(false);
+        expect(service.supportsEpgProgramSearch).toBe(false);
+    });
+
     it('requires the complete downloads preload surface', () => {
         testWindow.electron = {
             downloadsGetList: jest.fn(),
@@ -356,6 +431,39 @@ describe('RuntimeCapabilitiesService', () => {
         testWindow.electron = createPlaylistStorageBridge();
 
         expect(service.supportsSqlite).toBe(true);
+    });
+
+    it('checks playback-position storage and update bridge capabilities independently', () => {
+        testWindow.electron = {
+            dbSavePlaybackPosition: jest.fn(),
+            dbGetPlaybackPosition: jest.fn(),
+            dbGetSeriesPlaybackPositions: jest.fn(),
+            dbGetRecentPlaybackPositions: jest.fn(),
+            dbGetAllPlaybackPositions: jest.fn(),
+            dbClearAllPlaybackPositions: jest.fn(),
+        };
+
+        const service = new RuntimeCapabilitiesService();
+
+        expect(service.supportsPlaybackPositionStorage).toBe(false);
+        expect(service.supportsPlaybackPositionUpdates).toBe(false);
+
+        testWindow.electron = {
+            ...testWindow.electron,
+            dbClearPlaybackPosition: jest.fn(),
+        };
+
+        expect(service.supportsPlaybackPositionStorage).toBe(true);
+        expect(service.supportsPlaybackPositionUpdates).toBe(false);
+
+        testWindow.electron = {
+            ...testWindow.electron,
+            onPlaybackPositionUpdate: jest.fn(),
+        };
+
+        expect(service.supportsPlaybackPositionStorage).toBe(true);
+        expect(service.supportsPlaybackPositionUpdates).toBe(true);
+        expect(service.supportsXtreamSqliteDataSource).toBe(false);
     });
 
     it('supports Xtream section navigation in Electron when Xtream API transport is available', () => {
