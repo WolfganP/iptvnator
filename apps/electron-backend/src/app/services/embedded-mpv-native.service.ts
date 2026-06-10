@@ -76,6 +76,11 @@ interface EmbeddedMpvRuntimeSession {
 }
 
 const EMBEDDED_MPV_EXPERIMENT_ENV = 'IPTVNATOR_ENABLE_EMBEDDED_MPV_EXPERIMENT';
+const SUPPORTED_EMBEDDED_MPV_PLATFORMS = new Set<NodeJS.Platform>([
+    'darwin',
+    'win32',
+    'linux',
+]);
 
 function dedupePaths(paths: Array<string | undefined>): string[] {
     return [
@@ -88,6 +93,7 @@ export class EmbeddedMpvNativeService {
     private addonLoadError: Error | null = null;
     private readonly sessions = new Map<string, EmbeddedMpvRuntimeSession>();
     private pollingTimer: NodeJS.Timeout | null = null;
+    private readonly pollFailuresLogged = new Set<string>();
     private powerBlockerId: number | null = null;
     private readonly loadAddonModule = createRequire(__filename);
 
@@ -105,11 +111,21 @@ export class EmbeddedMpvNativeService {
     }
 
     getSupport(): EmbeddedMpvSupport {
-        if (process.platform !== 'darwin') {
+        if (!SUPPORTED_EMBEDDED_MPV_PLATFORMS.has(process.platform)) {
             return {
                 supported: false,
                 platform: process.platform,
-                reason: 'Embedded MPV is currently available on macOS only.',
+                reason:
+                    'Embedded MPV is currently available on macOS, Windows, and Linux only.',
+            };
+        }
+
+        if (this.isUnsupportedLinuxDisplayServer()) {
+            return {
+                supported: false,
+                platform: process.platform,
+                reason:
+                    'Embedded MPV on Linux currently requires X11 or Xwayland. Native Wayland embedding is not supported yet.',
             };
         }
 
@@ -117,7 +133,7 @@ export class EmbeddedMpvNativeService {
             return {
                 supported: false,
                 platform: process.platform,
-                reason: `Embedded MPV is a macOS-only experimental player. Set ${EMBEDDED_MPV_EXPERIMENT_ENV}=1 to enable it for local development builds.`,
+                reason: `Embedded MPV is an experimental desktop player. Set ${EMBEDDED_MPV_EXPERIMENT_ENV}=1 to enable it for local development builds, or use a packaged build with the bundled runtime.`,
             };
         }
 
@@ -450,6 +466,7 @@ export class EmbeddedMpvNativeService {
             addon.disposeSession(sessionId);
         } finally {
             this.sessions.delete(sessionId);
+            this.pollFailuresLogged.delete(sessionId);
             const payload: EmbeddedMpvSession = {
                 id: session.id,
                 title: session.title,
@@ -492,7 +509,24 @@ export class EmbeddedMpvNativeService {
 
         this.pollingTimer = setInterval(() => {
             [...this.sessions.keys()].forEach((sessionId) => {
-                this.refreshSession(sessionId);
+                // An addon-side throw must not escape the interval callback:
+                // it would surface as an uncaughtException in the main
+                // process every 500 ms while the timer keeps running. Log
+                // each session's first failure only — tracked per session so
+                // a healthy session in the same tick cannot reset the
+                // suppression for a failing one.
+                try {
+                    this.refreshSession(sessionId);
+                    this.pollFailuresLogged.delete(sessionId);
+                } catch (error) {
+                    if (!this.pollFailuresLogged.has(sessionId)) {
+                        this.pollFailuresLogged.add(sessionId);
+                        console.error(
+                            `[Embedded MPV] Polling session "${sessionId}" failed:`,
+                            error
+                        );
+                    }
+                }
             });
         }, 500);
     }
@@ -718,9 +752,17 @@ export class EmbeddedMpvNativeService {
     private assertEmbeddedMpvEnabled(): void {
         if (!this.isEmbeddedMpvEnabled()) {
             throw new Error(
-                `Embedded MPV is disabled. Set ${EMBEDDED_MPV_EXPERIMENT_ENV}=1 to enable the local macOS harness, or use a packaged macOS build with the bundled runtime.`
+                `Embedded MPV is disabled. Set ${EMBEDDED_MPV_EXPERIMENT_ENV}=1 to enable the local desktop harness, or use a packaged build with the bundled runtime.`
             );
         }
+    }
+
+    private isUnsupportedLinuxDisplayServer(): boolean {
+        return (
+            process.platform === 'linux' &&
+            Boolean(process.env.WAYLAND_DISPLAY) &&
+            !process.env.DISPLAY
+        );
     }
 
     private getAddon(): NativeEmbeddedMpvAddon {
@@ -836,13 +878,41 @@ export class EmbeddedMpvNativeService {
 
     private getMissingRuntimeReason(addonPath: string): string | null {
         const nativeDir = path.dirname(addonPath);
-        const libMpvPath = path.join(nativeDir, 'lib', 'libmpv.2.dylib');
+        const runtimeCandidates = this.getRuntimeLibraryCandidates(nativeDir);
 
-        if (!existsSync(libMpvPath)) {
-            return `Embedded MPV runtime is incomplete. Missing ${libMpvPath}.`;
+        if (!runtimeCandidates.some((candidate) => existsSync(candidate))) {
+            return [
+                'Embedded MPV runtime is incomplete. Missing one of:',
+                ...runtimeCandidates.map((candidate) => `- ${candidate}`),
+            ].join('\n');
         }
 
         return null;
+    }
+
+    private getRuntimeLibraryCandidates(nativeDir: string): string[] {
+        switch (process.platform) {
+            case 'darwin':
+                return [
+                    path.join(nativeDir, 'lib', 'libmpv.2.dylib'),
+                    path.join(nativeDir, 'lib', 'libmpv.dylib'),
+                ];
+            case 'win32':
+                return [
+                    path.join(nativeDir, 'lib', 'mpv-2.dll'),
+                    path.join(nativeDir, 'mpv-2.dll'),
+                    path.join(nativeDir, 'lib', 'mpv.dll'),
+                    path.join(nativeDir, 'mpv.dll'),
+                ];
+            case 'linux':
+                return [
+                    path.join(nativeDir, 'lib', 'libmpv.so.2'),
+                    path.join(nativeDir, 'lib', 'libmpv.so.1'),
+                    path.join(nativeDir, 'lib', 'libmpv.so'),
+                ];
+            default:
+                return [];
+        }
     }
 }
 

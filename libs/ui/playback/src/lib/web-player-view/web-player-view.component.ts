@@ -36,6 +36,7 @@ import {
     getLikelyBrowserUnsupportedCodecLabels,
     getPlaybackMediaExtensionFromUrl,
 } from '../playback-diagnostics/playback-diagnostics.util';
+import type { SeriesPlaybackNavigation } from '../portal-inline-player/series-playback-navigation';
 import { VjsPlayerComponent } from '../vjs-player/vjs-player.component';
 
 type PlaybackDiagnosticDetail = {
@@ -74,18 +75,21 @@ export class WebPlayerViewComponent {
     volume = input<number>(1);
     showCaptions = input<boolean>(false);
     playerOverride = input<VideoPlayer | null>(null);
+    seriesNavigation = input<SeriesPlaybackNavigation | null>(null);
     readonly timeUpdate = output<{
         currentTime: number;
         duration: number;
     }>();
     readonly externalFallbackRequested = output<PlaybackFallbackRequest>();
+    readonly playbackEnded = output<void>();
+    readonly previousEpisodeRequested = output<void>();
+    readonly nextEpisodeRequested = output<void>();
 
     settings = toSignal(this.storage.get(STORE_KEY.Settings)) as Signal<
         Settings | undefined
     >;
 
     channel!: Channel;
-    player!: VideoPlayer;
     vjsOptions!: {
         isLive: boolean;
         reloadToken: number;
@@ -93,10 +97,15 @@ export class WebPlayerViewComponent {
     };
     readonly reloadToken = signal(0);
     readonly playbackDiagnostic = signal<PlaybackDiagnostic | null>(null);
+    readonly visiblePlaybackDiagnostic = computed(() =>
+        this.selectedPlayer() === VideoPlayer.EmbeddedMpv
+            ? null
+            : this.playbackDiagnostic()
+    );
     readonly canShowExternalFallbackActions = computed(
         () =>
             this.runtime.supportsManagedExternalPlayers &&
-            !!this.playbackDiagnostic()?.externalFallbackRecommended
+            !!this.visiblePlaybackDiagnostic()?.externalFallbackRecommended
     );
     readonly diagnosticHeadlineKey = computed(() =>
         this.canShowExternalFallbackActions()
@@ -128,7 +137,8 @@ export class WebPlayerViewComponent {
 
     constructor() {
         effect(() => {
-            this.player = this.selectedPlayer();
+            // Track player changes so stale browser diagnostics are cleared on switch.
+            this.selectedPlayer();
 
             const playback = this.resolvedPlayback();
             this.playbackDiagnostic.set(null);
@@ -196,11 +206,16 @@ export class WebPlayerViewComponent {
     }
 
     handlePlaybackIssue(issue: PlaybackDiagnostic | null): void {
+        if (this.selectedPlayer() === VideoPlayer.EmbeddedMpv) {
+            this.playbackDiagnostic.set(null);
+            return;
+        }
+
         this.playbackDiagnostic.set(issue);
     }
 
     requestExternalFallback(player: ExternalPlayerName): void {
-        const diagnostic = this.playbackDiagnostic();
+        const diagnostic = this.visiblePlaybackDiagnostic();
         if (!diagnostic) {
             return;
         }

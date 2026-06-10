@@ -3,7 +3,7 @@ import type {
     EmbeddedMpvSessionStatus,
     ResolvedPortalPlayback,
 } from '@iptvnator/shared/interfaces';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import type { EmbeddedMpvNativeService as EmbeddedMpvNativeServiceType } from './embedded-mpv-native.service';
@@ -169,6 +169,52 @@ describe('EmbeddedMpvNativeService power blocker', () => {
         expect(powerSaveBlockerMock.start).not.toHaveBeenCalled();
     });
 
+    it('keeps the polling timer alive when refreshing a session throws', () => {
+        jest.useFakeTimers();
+        const consoleErrorSpy = jest
+            .spyOn(console, 'error')
+            .mockImplementation();
+
+        try {
+            startSession('s1', snapshot('playing'));
+            startSession('s2', snapshot('playing'));
+
+            // s1 keeps failing while s2 stays healthy: the healthy session
+            // must not reset the log suppression for the failing one.
+            addon.getSessionSnapshot.mockImplementation(
+                (sessionId: string) => {
+                    if (sessionId === 's1') {
+                        throw new Error('addon crashed');
+                    }
+                    return snapshot('playing');
+                }
+            );
+
+            // Three poll ticks: nothing may escape the interval callback,
+            // and the failure is logged once instead of at poll rate.
+            expect(() => jest.advanceTimersByTime(1500)).not.toThrow();
+            expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+
+            // Once the addon recovers, session updates flow again.
+            addon.getSessionSnapshot.mockImplementation(() =>
+                snapshot('playing', { positionSeconds: 42 })
+            );
+            mainWindowSendMock.mockClear();
+            jest.advanceTimersByTime(500);
+            expect(mainWindowSendMock).toHaveBeenCalled();
+
+            // A recovered session that fails again logs once more (one line
+            // per session per failure streak, not one per service lifetime).
+            addon.getSessionSnapshot.mockImplementation(() => {
+                throw new Error('addon crashed again');
+            });
+            jest.advanceTimersByTime(1000);
+            expect(consoleErrorSpy).toHaveBeenCalledTimes(3);
+        } finally {
+            consoleErrorSpy.mockRestore();
+        }
+    });
+
     it('acquires a single prevent-display-sleep blocker once a session is playing', () => {
         startSession('s1', snapshot('loading'));
 
@@ -192,6 +238,17 @@ describe('EmbeddedMpvNativeService power blocker', () => {
 
         addon.getSessionSnapshot.mockReturnValueOnce(snapshot('paused'));
         service.setPaused('s1', true);
+
+        expect(powerSaveBlockerMock.stop).toHaveBeenCalledTimes(1);
+        expect(powerSaveBlockerMock.stop).toHaveBeenCalledWith(1);
+    });
+
+    it('releases the blocker when MPV reports playback ended', () => {
+        startSession('s1', snapshot('playing'));
+        expect(powerSaveBlockerMock.start).toHaveBeenCalledTimes(1);
+
+        addon.getSessionSnapshot.mockReturnValueOnce(snapshot('ended'));
+        service.setPaused('s1', false);
 
         expect(powerSaveBlockerMock.stop).toHaveBeenCalledTimes(1);
         expect(powerSaveBlockerMock.stop).toHaveBeenCalledWith(1);
@@ -247,6 +304,66 @@ describe('EmbeddedMpvNativeService power blocker', () => {
     it('reports recording support when the addon exposes recording methods', () => {
         expect(service.getSupport().capabilities?.recording).toBe(true);
     });
+
+    it.each<NodeJS.Platform>(['darwin', 'win32', 'linux'])(
+        'reports embedded MPV support on %s when the addon is already loaded',
+        (platform) => {
+            Object.defineProperty(process, 'platform', {
+                value: platform,
+            });
+
+            expect(service.getSupport()).toEqual(
+                expect.objectContaining({
+                    supported: true,
+                    platform,
+                })
+            );
+        }
+    );
+
+    it.each([
+        {
+            platform: 'darwin' as NodeJS.Platform,
+            runtimeFile: path.join('lib', 'libmpv.2.dylib'),
+        },
+        {
+            platform: 'win32' as NodeJS.Platform,
+            runtimeFile: path.join('lib', 'mpv-2.dll'),
+        },
+        {
+            platform: 'linux' as NodeJS.Platform,
+            runtimeFile: path.join('lib', 'libmpv.so.2'),
+        },
+    ])(
+        'loads the addon after validating the $platform runtime file exists',
+        ({ platform, runtimeFile }) => {
+            Object.defineProperty(process, 'platform', {
+                value: platform,
+            });
+            const nativeDir = createTempDir();
+            const addonPath = path.join(nativeDir, 'embedded_mpv.node');
+            const runtimePath = path.join(nativeDir, runtimeFile);
+            mkdirSync(path.dirname(runtimePath), { recursive: true });
+            writeFileSync(addonPath, '');
+            writeFileSync(runtimePath, '');
+            const loadAddonModule = jest.fn().mockReturnValue(addon);
+
+            Object.assign(service as unknown as Record<string, unknown>, {
+                addon: null,
+                addonLoadError: null,
+                loadAddonModule,
+                getAddonCandidatePaths: () => [addonPath],
+            });
+
+            expect(service.getSupport()).toEqual(
+                expect.objectContaining({
+                    supported: true,
+                    platform,
+                })
+            );
+            expect(loadAddonModule).toHaveBeenCalledWith(addonPath);
+        }
+    );
 
     it('loads the addon before reporting support capabilities', () => {
         const loadAddonModule = jest.fn().mockReturnValue(addon);
