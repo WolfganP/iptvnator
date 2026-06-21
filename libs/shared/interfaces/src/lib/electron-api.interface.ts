@@ -7,6 +7,12 @@ import {
 import { EpgChannelMetadata } from './epg-channel-metadata.model';
 import { EpgProgram } from './epg-program.model';
 import { ExternalPlayerSession } from './external-player-session.interface';
+import {
+    GlobalSearchPaginationOptions,
+    GlobalSearchResult,
+    GlobalSearchResultSource,
+} from './global-search-result.interface';
+import { M3uFavoriteChannel } from './m3u-favorite-channel.interface';
 import { PlaybackPositionData } from './playback-position.interface';
 import {
     XtreamBackupFavoriteItem,
@@ -200,6 +206,10 @@ export interface ElectronBridgeEpgFreshnessResult {
     freshUrls: string[];
 }
 
+export interface ElectronBridgeEpgLookupOptions {
+    sourceUrls?: string[];
+}
+
 export interface ElectronBridgeEpgProgressStats {
     totalChannels: number;
     totalPrograms: number;
@@ -322,10 +332,7 @@ export type ElectronBridgeXtreamContentStream =
       }
     | Record<string, unknown>;
 
-export interface ElectronBridgeGlobalSearchResult extends ElectronBridgeXtreamContent {
-    playlist_id: string;
-    playlist_name: string;
-}
+export type ElectronBridgeGlobalSearchResult = GlobalSearchResult;
 
 export interface ElectronBridgeGlobalRecentItem extends ElectronBridgeXtreamContent {
     playlist_id: string;
@@ -506,12 +513,17 @@ export interface ElectronBridgeApi {
         urls: string[],
         options?: ElectronBridgeTrustOptions
     ) => Promise<ElectronBridgeEpgFetchResult>;
-    getChannelPrograms: (channelId: string) => Promise<EpgProgram[]>;
+    getChannelPrograms: (
+        channelId: string,
+        options?: ElectronBridgeEpgLookupOptions
+    ) => Promise<EpgProgram[]>;
     getCurrentProgramsBatch: (
-        channelIds: string[]
+        channelIds: string[],
+        options?: ElectronBridgeEpgLookupOptions
     ) => Promise<Record<string, EpgProgram | null>>;
     getEpgChannelMetadata: (
-        channelIds: string[]
+        channelIds: string[],
+        options?: ElectronBridgeEpgLookupOptions
     ) => Promise<Record<string, EpgChannelMetadata | null>>;
     getEpgChannels: () => Promise<ElectronBridgeEpgChannelListResult>;
     getEpgChannelsByRange: (
@@ -523,6 +535,7 @@ export interface ElectronBridgeApi {
         options?: ElectronBridgeTrustOptions
     ) => Promise<ElectronBridgeEpgFetchResult>;
     clearEpgData: () => Promise<ElectronBridgeResult>;
+    clearEpgDataForSource: (sourceUrl: string) => Promise<ElectronBridgeResult>;
     checkEpgFreshness: (
         urls: string[],
         maxAgeHours?: number
@@ -563,7 +576,11 @@ export interface ElectronBridgeApi {
         playlists: Playlist[]
     ) => Promise<ElectronBridgeCountResult>;
     dbGetAppPlaylists: () => Promise<Playlist[]>;
+    dbGetAppPlaylistMetas: () => Promise<Playlist[]>;
     dbGetAppPlaylist: (playlistId: string) => Promise<Playlist | null>;
+    dbGetAppPlaylistFavoriteChannels: (
+        playlistId: string
+    ) => Promise<M3uFavoriteChannel[]>;
     dbUpdatePlaylist: (
         playlistId: string,
         updates: Partial<Playlist> | ElectronBridgePlaylistInput
@@ -630,7 +647,9 @@ export interface ElectronBridgeApi {
     dbGlobalSearch: (
         searchTerm: string,
         types: string[],
-        excludeHidden?: boolean
+        excludeHidden?: boolean,
+        sources?: GlobalSearchResultSource[],
+        options?: GlobalSearchPaginationOptions
     ) => Promise<ElectronBridgeGlobalSearchResult[]>;
     dbGetGlobalRecentlyAdded: (
         kind: ElectronBridgeGlobalRecentlyAddedKind,

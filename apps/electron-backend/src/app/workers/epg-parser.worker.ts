@@ -6,10 +6,17 @@ import {
 } from '@iptvnator/shared/interfaces';
 import { Readable } from 'stream';
 import { parentPort, workerData } from 'worker_threads';
-import { createGunzip } from 'zlib';
-import { EpgDatabase, EpgDatabaseClearOperation } from './epg-database';
+import {
+    EpgDatabase,
+    EpgDatabaseClearOperation,
+    EpgDatabaseSourceClearOperation,
+} from './epg-database';
+import { createDecodedEpgStream } from './epg-stream-decoder';
 import { StreamingEpgParser } from './epg-streaming-parser';
-import { shouldGunzipEpgResponse } from './epg-response-utils';
+import {
+    getEpgResponseContentEncoding,
+    shouldGunzipEpgResponse,
+} from './epg-response-utils';
 import {
     isPrivateNetworkUrlAccessAllowed,
     UnsafeUrlError,
@@ -58,8 +65,9 @@ const Database = loadBetterSqlite3();
  */
 
 interface WorkerMessage {
-    type: 'FETCH_EPG' | 'FORCE_FETCH' | 'CLEAR_EPG';
+    type: 'FETCH_EPG' | 'FORCE_FETCH' | 'CLEAR_EPG' | 'CLEAR_EPG_SOURCE';
     url?: string;
+    sourceUrl?: string;
     options?: ElectronBridgeTrustOptions;
 }
 
@@ -130,6 +138,7 @@ async function fetchAndParseEpgStreaming(
             headers: response.headers,
             url: responseUrl,
         });
+        const contentEncoding = getEpgResponseContentEncoding(response.headers);
 
         if (responseUrl && responseUrl !== url) {
             console.log(
@@ -142,6 +151,12 @@ async function fetchAndParseEpgStreaming(
             loggerLabel,
             `EPG response detected as gzipped: ${isGzipped}`
         );
+        if (contentEncoding) {
+            console.log(
+                loggerLabel,
+                `EPG response content-encoding: ${contentEncoding}`
+            );
+        }
 
         if (response.status < 200 || response.status >= 300) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -160,7 +175,7 @@ async function fetchAndParseEpgStreaming(
             },
             (programs) => {
                 // Insert programs directly into database
-                epgDb.insertPrograms(programs);
+                epgDb.insertPrograms(programs, url);
             },
             (totalChannels, totalPrograms) => {
                 // Send progress to main thread (lightweight)
@@ -175,18 +190,11 @@ async function fetchAndParseEpgStreaming(
         );
 
         return new Promise((resolve, reject) => {
-            let dataStream: Readable = response.data;
-
-            if (isGzipped) {
-                const gunzip = createGunzip();
-                dataStream = response.data.pipe(gunzip);
-
-                gunzip.on('error', (err) => {
-                    console.error(loggerLabel, 'Gunzip error:', err);
-                    epgDb.close();
-                    reject(err);
-                });
-            }
+            const dataStream = createDecodedEpgStream(
+                response.data,
+                response.headers,
+                isGzipped
+            );
 
             dataStream.on('data', (chunk: Buffer) => {
                 try {
@@ -327,6 +335,33 @@ function clearAllEpgData(): void {
     }
 }
 
+function clearEpgDataForSource(sourceUrl: string): void {
+    const clearOperation = new EpgDatabaseSourceClearOperation(Database);
+
+    try {
+        console.log(
+            loggerLabel,
+            `Clearing EPG data for source ${sourceUrl}...`
+        );
+
+        clearOperation.run(sourceUrl);
+
+        console.log(loggerLabel, `EPG data cleared for source ${sourceUrl}`);
+
+        const response: WorkerResponse = { type: 'CLEAR_COMPLETE' };
+        parentPort?.postMessage(response);
+    } catch (error) {
+        console.error(loggerLabel, 'Error clearing EPG source data:', error);
+        const errorResponse: WorkerResponse = {
+            type: 'EPG_ERROR',
+            error: error instanceof Error ? error.message : String(error),
+        };
+        parentPort?.postMessage(errorResponse);
+    } finally {
+        clearOperation.close();
+    }
+}
+
 /**
  * Worker message handler
  */
@@ -340,6 +375,8 @@ if (parentPort) {
                 await fetchAndParseEpgStreaming(message.url!, message.options);
             } else if (message.type === 'CLEAR_EPG') {
                 clearAllEpgData();
+            } else if (message.type === 'CLEAR_EPG_SOURCE') {
+                clearEpgDataForSource(message.sourceUrl ?? '');
             }
         } catch (error) {
             console.error(loggerLabel, 'Worker error:', error);

@@ -7,6 +7,7 @@ import type {
     ElectronBridgeApi,
     ElectronBridgeDbOperationEvent,
     ElectronBridgeDownloadStartPayload,
+    ElectronBridgeEpgLookupOptions,
     ElectronBridgeEpgProgress,
     ElectronBridgePlaybackPositionInput,
     ElectronBridgePlaylistInput,
@@ -17,6 +18,8 @@ import type {
     ElectronBridgeWindowState,
     ElectronBridgeXtreamContentStream,
     ExternalPlayerSession,
+    GlobalSearchPaginationOptions,
+    GlobalSearchResultSource,
     PlaybackPositionData,
     PlayerContentInfo,
     Playlist,
@@ -458,18 +461,31 @@ const electronApi: ElectronBridgeApi = {
     ) => ipcRenderer.invoke('AUTO_UPDATE', playlists, options),
     fetchEpg: (urls: string[], options?: ElectronBridgeTrustOptions) =>
         ipcRenderer.invoke('FETCH_EPG', { url: urls, options }),
-    getChannelPrograms: (channelId: string) =>
-        ipcRenderer.invoke('GET_CHANNEL_PROGRAMS', { channelId }),
-    getCurrentProgramsBatch: (channelIds: string[]) =>
-        ipcRenderer.invoke('GET_CURRENT_PROGRAMS_BATCH', { channelIds }),
-    getEpgChannelMetadata: (channelIds: string[]) =>
-        ipcRenderer.invoke('EPG_GET_CHANNEL_METADATA', { channelIds }),
+    getChannelPrograms: (
+        channelId: string,
+        options?: ElectronBridgeEpgLookupOptions
+    ) => ipcRenderer.invoke('GET_CHANNEL_PROGRAMS', { channelId, options }),
+    getCurrentProgramsBatch: (
+        channelIds: string[],
+        options?: ElectronBridgeEpgLookupOptions
+    ) =>
+        ipcRenderer.invoke('GET_CURRENT_PROGRAMS_BATCH', {
+            channelIds,
+            options,
+        }),
+    getEpgChannelMetadata: (
+        channelIds: string[],
+        options?: ElectronBridgeEpgLookupOptions
+    ) =>
+        ipcRenderer.invoke('EPG_GET_CHANNEL_METADATA', { channelIds, options }),
     getEpgChannels: () => ipcRenderer.invoke('EPG_GET_CHANNELS'),
     getEpgChannelsByRange: (skip: number, limit: number) =>
         ipcRenderer.invoke('EPG_GET_CHANNELS_BY_RANGE', { skip, limit }),
     forceFetchEpg: (url: string, options?: ElectronBridgeTrustOptions) =>
         ipcRenderer.invoke('EPG_FORCE_FETCH', { url, options }),
     clearEpgData: () => ipcRenderer.invoke('EPG_CLEAR_ALL'),
+    clearEpgDataForSource: (sourceUrl: string) =>
+        ipcRenderer.invoke('EPG_CLEAR_SOURCE', { sourceUrl }),
     checkEpgFreshness: (urls: string[], maxAgeHours?: number) =>
         ipcRenderer.invoke('EPG_CHECK_FRESHNESS', { urls, maxAgeHours }),
     searchEpgPrograms: (searchTerm: string, limit?: number) =>
@@ -514,8 +530,12 @@ const electronApi: ElectronBridgeApi = {
     dbUpsertAppPlaylists: (playlists: Playlist[]) =>
         ipcRenderer.invoke('DB_UPSERT_APP_PLAYLISTS', playlists),
     dbGetAppPlaylists: () => ipcRenderer.invoke('DB_GET_APP_PLAYLISTS'),
+    dbGetAppPlaylistMetas: () =>
+        ipcRenderer.invoke('DB_GET_APP_PLAYLIST_METAS'),
     dbGetAppPlaylist: (playlistId: string) =>
         ipcRenderer.invoke('DB_GET_APP_PLAYLIST', playlistId),
+    dbGetAppPlaylistFavoriteChannels: (playlistId: string) =>
+        ipcRenderer.invoke('DB_GET_APP_PLAYLIST_FAVORITE_CHANNELS', playlistId),
     dbUpdatePlaylist: (
         playlistId: string,
         updates: Partial<Playlist> | ElectronBridgePlaylistInput
@@ -599,14 +619,28 @@ const electronApi: ElectronBridgeApi = {
     dbGlobalSearch: (
         searchTerm: string,
         types: string[],
-        excludeHidden?: boolean
-    ) =>
-        ipcRenderer.invoke(
+        excludeHidden?: boolean,
+        sources?: GlobalSearchResultSource[],
+        options?: GlobalSearchPaginationOptions
+    ) => {
+        if (sources?.length || options) {
+            return ipcRenderer.invoke(
+                'DB_GLOBAL_SEARCH',
+                searchTerm,
+                types,
+                excludeHidden,
+                sources,
+                options
+            );
+        }
+
+        return ipcRenderer.invoke(
             'DB_GLOBAL_SEARCH',
             searchTerm,
             types,
             excludeHidden
-        ),
+        );
+    },
     dbGetGlobalRecentlyAdded: (
         kind: 'all' | 'vod' | 'series',
         limit?: number,

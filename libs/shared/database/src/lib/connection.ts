@@ -26,6 +26,11 @@ let initPromise: Promise<DatabaseInstance> | null = null;
 const XTREAM_ADDED_EPOCH_MILLISECONDS_THRESHOLD = 10_000_000_000;
 const XTREAM_ADDED_EPOCH_SECONDS_MIGRATION_KEY =
     'migration:xtream-content-added-epoch-seconds:v1';
+const CONTENT_TITLE_FTS_MIGRATION_KEY =
+    'migration:content-title-fts-trigram:v1';
+const EPG_PROGRAM_SOURCE_URL_BACKFILL_MIGRATION_KEY =
+    'migration:epg-program-source-url-backfill:v1';
+const EPG_PROGRAM_SOURCE_URL_BACKFILL_BATCH_SIZE = 50_000;
 
 function readTraceFlag(name: string): boolean {
     const value = process.env[name]?.trim().toLowerCase();
@@ -82,6 +87,10 @@ const CREATE_TABLE_STATEMENTS = [
       origin TEXT,
       referrer TEXT,
       filePath TEXT,
+      epg_urls TEXT,
+      detected_epg_urls TEXT,
+      manual_epg_urls TEXT,
+      disabled_epg_urls TEXT,
       autoRefresh INTEGER DEFAULT 0,
       macAddress TEXT,
       url TEXT,
@@ -158,6 +167,29 @@ const CREATE_TABLE_STATEMENTS = [
     // categories row, and hidden categories are absent so they're skipped
     // before any row lookup.
     `CREATE INDEX IF NOT EXISTS idx_categories_visible ON categories(id, playlist_id, type) WHERE hidden = 0`,
+    // Trigram FTS index for global Xtream title search. It supports fast
+    // contains matches such as "max" -> "beIN MAX" and "Cinemax" without
+    // scanning the full content table.
+    `CREATE VIRTUAL TABLE IF NOT EXISTS content_title_fts USING fts5(
+      title,
+      content='content',
+      content_rowid='id',
+      tokenize='trigram'
+  )`,
+    `CREATE TRIGGER IF NOT EXISTS content_title_fts_ai AFTER INSERT ON content BEGIN
+      INSERT INTO content_title_fts(rowid, title)
+      VALUES (new.id, new.title);
+  END`,
+    `CREATE TRIGGER IF NOT EXISTS content_title_fts_ad AFTER DELETE ON content BEGIN
+      INSERT INTO content_title_fts(content_title_fts, rowid, title)
+      VALUES ('delete', old.id, old.title);
+  END`,
+    `CREATE TRIGGER IF NOT EXISTS content_title_fts_au AFTER UPDATE ON content BEGIN
+      INSERT INTO content_title_fts(content_title_fts, rowid, title)
+      VALUES ('delete', old.id, old.title);
+      INSERT INTO content_title_fts(rowid, title)
+      VALUES (new.id, new.title);
+  END`,
     `CREATE UNIQUE INDEX IF NOT EXISTS favorites_content_playlist_unique ON favorites(content_id, playlist_id)`,
     `CREATE INDEX IF NOT EXISTS favorites_playlist_idx ON favorites(playlist_id)`,
     `CREATE INDEX IF NOT EXISTS favorites_content_idx ON favorites(content_id)`,
@@ -185,6 +217,7 @@ const CREATE_TABLE_STATEMENTS = [
       icon_url TEXT,
       rating TEXT,
       episode_num TEXT,
+      source_url TEXT,
       FOREIGN KEY (channel_id) REFERENCES epg_channels(id) ON DELETE CASCADE
   )`,
     // EPG indexes
@@ -279,6 +312,11 @@ const COLUMN_MIGRATION_STATEMENTS = [
     `ALTER TABLE playlists ADD COLUMN favorites TEXT`,
     `ALTER TABLE playlists ADD COLUMN recently_viewed TEXT`,
     `ALTER TABLE playlists ADD COLUMN payload TEXT`,
+    // v1.2.1: Keep M3U-detected EPG URLs available in lightweight playlist metadata
+    `ALTER TABLE playlists ADD COLUMN epg_urls TEXT`,
+    `ALTER TABLE playlists ADD COLUMN detected_epg_urls TEXT`,
+    `ALTER TABLE playlists ADD COLUMN manual_epg_urls TEXT`,
+    `ALTER TABLE playlists ADD COLUMN disabled_epg_urls TEXT`,
     // v1.2.0 -> v1.3.0: Add position column to favorites for global favorites ordering
     `ALTER TABLE favorites ADD COLUMN position INTEGER DEFAULT 0`,
     // v1.4.0 -> v1.5.0: Preserve Xtream live metadata required for EPG/catch-up
@@ -288,6 +326,8 @@ const COLUMN_MIGRATION_STATEMENTS = [
     `ALTER TABLE content ADD COLUMN direct_source TEXT`,
     // v1.5.0 -> v1.6.0: Cinematic backdrop persisted on first detail fetch
     `ALTER TABLE content ADD COLUMN backdrop_url TEXT`,
+    // v1.7.1: Scope XMLTV programs to their source URL for playlist-local EPG lookup
+    `ALTER TABLE epg_programs ADD COLUMN source_url TEXT`,
 ];
 
 const INDEX_MIGRATION_STATEMENTS = [
@@ -296,6 +336,9 @@ const INDEX_MIGRATION_STATEMENTS = [
     `CREATE UNIQUE INDEX IF NOT EXISTS content_category_type_xtream_unique ON content(category_id, type, xtream_id)`,
     // v1.6.0 -> v1.7.0: Query global favorites in stable display order
     `CREATE INDEX IF NOT EXISTS favorites_playlist_position_idx ON favorites(playlist_id, position, added_at DESC)`,
+    // v1.7.1 -> v1.7.2: Query playlist-scoped EPG by source URL and channel/time
+    `CREATE INDEX IF NOT EXISTS idx_epg_programs_source ON epg_programs(source_url)`,
+    `CREATE INDEX IF NOT EXISTS idx_epg_programs_source_time_range ON epg_programs(source_url, channel_id, start, stop)`,
 ];
 
 export const __databaseConnectionTestHooks = {
@@ -303,6 +346,9 @@ export const __databaseConnectionTestHooks = {
     columnMigrationStatements: COLUMN_MIGRATION_STATEMENTS,
     indexMigrationStatements: INDEX_MIGRATION_STATEMENTS,
     normalizeXtreamContentAddedEpochs,
+    ensureContentTitleFts,
+    backfillEpgProgramSourceUrls,
+    runMigrations,
 } as const;
 
 /**
@@ -523,6 +569,122 @@ function normalizeXtreamContentAddedEpochs(sqliteDb: Database.Database): void {
     }
 }
 
+function ensureContentTitleFts(sqliteDb: Database.Database): void {
+    try {
+        const migrationState = sqliteDb
+            .prepare(`SELECT value FROM app_state WHERE key = ?`)
+            .get(CONTENT_TITLE_FTS_MIGRATION_KEY) as
+            | { value?: unknown }
+            | undefined;
+
+        if (migrationState?.value === 'done') {
+            return;
+        }
+
+        const executeMigration = sqliteDb.transaction(() => {
+            sqliteDb
+                .prepare(
+                    `INSERT INTO content_title_fts(content_title_fts)
+                     VALUES ('rebuild')`
+                )
+                .run();
+
+            sqliteDb
+                .prepare(
+                    `INSERT INTO app_state (key, value, updated_at)
+                     VALUES (?, 'done', datetime('now'))
+                     ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = excluded.updated_at`
+                )
+                .run(CONTENT_TITLE_FTS_MIGRATION_KEY);
+        });
+
+        executeMigration();
+    } catch (error) {
+        const message =
+            typeof error === 'object' && error !== null && 'message' in error
+                ? String((error as { message?: unknown }).message ?? error)
+                : String(error);
+
+        console.warn(
+            `Content title FTS rebuild failed (continuing): ${message}`
+        );
+    }
+}
+
+function backfillEpgProgramSourceUrls(sqliteDb: Database.Database): void {
+    try {
+        const migrationState = sqliteDb
+            .prepare(`SELECT value FROM app_state WHERE key = ?`)
+            .get(EPG_PROGRAM_SOURCE_URL_BACKFILL_MIGRATION_KEY) as
+            | { value?: unknown }
+            | undefined;
+
+        if (migrationState?.value === 'done') {
+            return;
+        }
+
+        const backfillStatement = sqliteDb.prepare(
+            `UPDATE epg_programs
+             SET source_url = (
+                 SELECT epg_channels.source_url
+                 FROM epg_channels
+                 WHERE epg_channels.id = epg_programs.channel_id
+                 LIMIT 1
+             )
+             WHERE id IN (
+                 SELECT pending_programs.id
+                 FROM epg_programs AS pending_programs
+                 JOIN epg_channels
+                   ON epg_channels.id = pending_programs.channel_id
+                 WHERE pending_programs.source_url IS NULL
+                   AND epg_channels.source_url IS NOT NULL
+                   AND epg_channels.source_url <> ''
+                 LIMIT ${EPG_PROGRAM_SOURCE_URL_BACKFILL_BATCH_SIZE}
+             )`
+        );
+        const markMigrationDoneStatement = sqliteDb.prepare(
+            `INSERT INTO app_state (key, value, updated_at)
+             VALUES (?, 'done', datetime('now'))
+             ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at`
+        );
+
+        const executeBackfillBatch = sqliteDb.transaction((): number => {
+            const result = backfillStatement.run();
+            return typeof result === 'object' &&
+                result !== null &&
+                'changes' in result &&
+                typeof result.changes === 'number'
+                ? result.changes
+                : 0;
+        });
+        const markMigrationDone = sqliteDb.transaction(() => {
+            markMigrationDoneStatement.run(
+                EPG_PROGRAM_SOURCE_URL_BACKFILL_MIGRATION_KEY
+            );
+        });
+
+        let updatedRows = 0;
+        do {
+            updatedRows = executeBackfillBatch();
+        } while (updatedRows === EPG_PROGRAM_SOURCE_URL_BACKFILL_BATCH_SIZE);
+
+        markMigrationDone();
+    } catch (error) {
+        const message =
+            typeof error === 'object' && error !== null && 'message' in error
+                ? String((error as { message?: unknown }).message ?? error)
+                : String(error);
+
+        console.warn(
+            `EPG program source URL backfill failed (continuing): ${message}`
+        );
+    }
+}
+
 function runMigrationStatements(
     sqliteDb: Database.Database,
     statements: string[]
@@ -556,9 +718,11 @@ function runMigrationStatements(
  */
 function runMigrations(sqliteDb: Database.Database): void {
     runMigrationStatements(sqliteDb, COLUMN_MIGRATION_STATEMENTS);
+    ensureContentTitleFts(sqliteDb);
     deduplicateXtreamCache(sqliteDb);
     normalizeXtreamContentAddedEpochs(sqliteDb);
     runMigrationStatements(sqliteDb, INDEX_MIGRATION_STATEMENTS);
+    backfillEpgProgramSourceUrls(sqliteDb);
 }
 
 export interface DatabaseOptions {
