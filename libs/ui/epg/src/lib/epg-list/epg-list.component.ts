@@ -20,16 +20,23 @@ import { normalizeDateLocale } from '@iptvnator/pipes';
 import { Store } from '@ngrx/store';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { EpgActions, selectActive } from '@iptvnator/m3u-state';
-import { format, subDays } from 'date-fns';
+import { subDays } from 'date-fns';
 import { startWith } from 'rxjs';
 import { Channel, EpgChannel, EpgProgram } from '@iptvnator/shared/interfaces';
 import {
-    EPG_DATE_KEY_FORMAT,
     EpgDateNavigationDirection,
     getTodayEpgDateKey,
     shiftEpgDateKey,
 } from '../epg-date';
 import { EpgListItemComponent } from './epg-list-item/epg-list-item.component';
+import {
+    areProgramsSame,
+    buildScrollContextKey,
+    deduplicateProgramsByTimeSlot,
+    getProgramDateKey,
+    getProgramTimeMs,
+    trackProgram,
+} from './epg-list.utils';
 
 export interface EpgProgramActivationEvent {
     program: EpgProgram;
@@ -55,12 +62,14 @@ export class EpgListComponent {
     readonly controlledPrograms = input<EpgProgram[] | null>(null);
     readonly controlledArchiveDays = input<number | null>(null);
     readonly archivePlaybackAvailable = input<boolean | null>(null);
+    readonly activeProgram = input<EpgProgram | null>(null);
     readonly selectedDateInput = input<string | null>(null, {
         alias: 'selectedDate',
     });
     readonly showDateNavigator = input(true);
     readonly programActivated = output<EpgProgramActivationEvent>();
     readonly selectedDateChange = output<string>();
+    readonly trackProgram = trackProgram;
 
     private readonly store = inject(Store);
     private readonly epgService = inject(EpgService);
@@ -136,17 +145,19 @@ export class EpgListComponent {
         () => this.archivePlaybackAvailable() ?? this.archiveDays() > 0
     );
     readonly filteredItems = computed(() =>
-        [...this.items()]
-            .filter(
-                (item) =>
-                    getProgramDateKey(item.start, item.startTimestamp) ===
-                    this.selectedDateKey()
-            )
-            .sort(
-                (left, right) =>
-                    getProgramTimeMs(left.start, left.startTimestamp) -
-                    getProgramTimeMs(right.start, right.startTimestamp)
-            )
+        deduplicateProgramsByTimeSlot(
+            [...this.items()]
+                .filter(
+                    (item) =>
+                        getProgramDateKey(item.start, item.startTimestamp) ===
+                        this.selectedDateKey()
+                )
+                .sort(
+                    (left, right) =>
+                        getProgramTimeMs(left.start, left.startTimestamp) -
+                        getProgramTimeMs(right.start, right.startTimestamp)
+                )
+        )
     );
 
     private scrollScheduled = false;
@@ -235,6 +246,11 @@ export class EpgListComponent {
         this.timeNow.set(new Date().toISOString());
     }
 
+    activateProgramFromKeyboard(event: Event, program: EpgProgram): void {
+        event.preventDefault();
+        this.activateProgram(program);
+    }
+
     canActivateProgram(program: EpgProgram): boolean {
         return (
             this.isProgramPlaying(program) ||
@@ -276,6 +292,13 @@ export class EpgListComponent {
         const archiveLimit = Date.parse(this.timeshiftUntil());
 
         return stop < now && start >= archiveLimit;
+    }
+
+    isProgramActive(program: EpgProgram): boolean {
+        const activeProgram = this.activeProgram();
+        return activeProgram
+            ? areProgramsSame(program, activeProgram)
+            : this.isProgramPlaying(program);
     }
 
     private findCurrentProgram(programs: EpgProgram[]): EpgProgram | undefined {
@@ -357,48 +380,4 @@ export class EpgListComponent {
             });
         }
     }
-}
-
-function buildScrollContextKey(
-    channel: Channel | null,
-    programs: EpgProgram[]
-): string | null {
-    if (!channel && programs.length === 0) {
-        return null;
-    }
-
-    const channelKey =
-        channel?.tvg?.id || channel?.name || channel?.url || 'unknown-channel';
-    const programKey = programs
-        .map(
-            (program) =>
-                `${getProgramTimeMs(program.start, program.startTimestamp)}-${getProgramTimeMs(program.stop, program.stopTimestamp)}`
-        )
-        .join('|');
-
-    return `${channelKey}:${programKey}`;
-}
-
-function getProgramTimeMs(
-    isoValue: string,
-    timestampValue?: number | null
-): number {
-    if (Number.isFinite(timestampValue) && Number(timestampValue) > 0) {
-        return Number(timestampValue) * 1000;
-    }
-
-    return Date.parse(isoValue);
-}
-
-function getProgramDateKey(
-    isoValue: string,
-    timestampValue?: number | null
-): string {
-    const programTimeMs = getProgramTimeMs(isoValue, timestampValue);
-
-    if (!Number.isFinite(programTimeMs)) {
-        return '';
-    }
-
-    return format(new Date(programTimeMs), EPG_DATE_KEY_FORMAT);
 }
